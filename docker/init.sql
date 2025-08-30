@@ -85,12 +85,13 @@ CREATE TABLE sequence_run (
 -- 创建 process_data 表
 CREATE TABLE process_data (
     process_id INT AUTO_INCREMENT PRIMARY KEY,
-    sequence_id VARCHAR(50) UNIQUE NOT NULL,                          -- 外键，关联sequence_run表    
+    sequence_id VARCHAR(50),                            -- 外键，关联sequence_run表
     process_status ENUM('yes', 'no') DEFAULT 'no',
+    UNIQUE (sequence_id),
     FOREIGN KEY (sequence_id) REFERENCES sequence_run(sequence_id)
 );
 
--- 创建 processed_data_run 表（关联表）多对多表
+-- 创建 processed_data_dependency 表（关联表）多对多表
 CREATE TABLE processed_data_dependency (
     id INT AUTO_INCREMENT PRIMARY KEY,
     process_id INT,                                       -- 外键，关联 process_data 表
@@ -111,6 +112,7 @@ CREATE TABLE analysis_inputs (
     raw_data_path VARCHAR(1024),                           -- 熟数据路径 通过 processed_data_run表获取
     parameters JSON,                                      -- 生成参数。根据不同的项目类型获取相关的字段信息，生成json
     analysis_status ENUM('yes', 'no') DEFAULT 'no',       -- 是否分析，没有分析的，会再启动分析，默认是no 未分析，支持手动修改
+    retry_count INT DEFAULT 0,                             -- 重试次数，默认0
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,        -- 记录生成时间，自动生成时间戳
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- 记录更新时间，自动生成时间戳
     FOREIGN KEY (process_id) REFERENCES process_data(process_id),
@@ -167,27 +169,31 @@ CREATE TABLE field_corrections (
 -- 创建 batch_process_record 表 批次号对应的路径记录
 CREATE TABLE batch_process_record (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    batch_id VARCHAR(50),                                 -- 外键，关联batch表
-    batch_path VARCHAR(255),                              -- 默认是"-"
-    operation_type ENUM('create', 'move', 'backup', 'delete', 'restore', 'archive') NOT NULL DEFAULT 'create', -- 操作类型
-    notes TEXT,                                           -- 备注
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,   -- 记录生成时间
-    FOREIGN KEY (batch_id) REFERENCES batch(batch_id)
+    batch_id VARCHAR(50),
+    batch_path VARCHAR(255) DEFAULT '-',
+    operation_type ENUM('create', 'move', 'backup', 'delete', 'restore', 'archive') DEFAULT 'create',
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (batch_id) REFERENCES batch(batch_id),
+    INDEX idx_batch_id (batch_id),
+    INDEX idx_batch_op_type (operation_type),
+    INDEX idx_batch_created_at (created_at),
+    INDEX idx_batch_op_time (batch_id, operation_type, created_at)
 );
 
 -- 创建 sample_analysis_path_record 表
 CREATE TABLE sample_analysis_path_record (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    sample_id VARCHAR(50),                                -- 外键，关联sample表
-    analysis_path VARCHAR(255) NOT NULL DEFAULT '-',                           -- 默认是"-"
-    operation_type ENUM('create', 'reanalysis', 'move', 'backup', 'delete', 'restore', 'archive') NOT NULL DEFAULT 'create', -- 操作类型
-    notes TEXT,                                           -- 备注
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,   -- 记录生成时间
-    FOREIGN KEY (sample_id) REFERENCES sample(sample_id) ON DELETE CASCADE,
-    INDEX idx_sample_id (sample_id),                   -- 索引：按样本查询历史（最常用）
-    INDEX idx_operation_type (operation_type),          -- 索引：按操作类型统计（如查所有重分析记录）
-    INDEX idx_created_at (created_at),                  -- 索引：按时间范围查询（如最近7天的备份）
-    INDEX idx_sample_op_time (sample_id, operation_type, created_at)    -- 组合索引：高频查询场景优化
+    sample_id VARCHAR(50),
+    analysis_path VARCHAR(255) DEFAULT '-',
+    operation_type ENUM('create', 'reanalysis', 'move', 'backup', 'delete', 'restore', 'archive') DEFAULT 'create',
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sample_id) REFERENCES sample(sample_id),
+    INDEX idx_sample_id (sample_id),
+    INDEX idx_sample_op_type (operation_type),
+    INDEX idx_sample_created_at (created_at),
+    INDEX idx_sample_op_time (sample_id, operation_type, created_at)
 );
 
 

@@ -1,0 +1,34 @@
+version: '3.8'
+services:
+  mysql:
+    image: custom-mysql:v1.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+      pull: false
+    container_name: bioinfo_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: bioinfo_db
+      MYSQL_ROOT_PASSWORD: vklz123
+      MYSQL_USER: bioinfo_user
+      MYSQL_PASSWORD: 123456
+    ports:
+      - "3306:3306"
+    volumes:
+      - /nas02/project/zhaolei/database/mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ppassword"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+
+# 手动定义网络和子网
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        # 修改为不同的子网，例如192.168.200.0/24
+        - subnet: 192.168.210.0/24
