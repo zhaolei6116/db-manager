@@ -1,4 +1,4 @@
-from src.repositories.base_repository import BaseRepository, ModelType
+from .base_repository import BaseRepository, ModelType
 from src.models.models import Batch
 from sqlalchemy.orm import Session
 

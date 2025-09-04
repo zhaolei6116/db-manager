@@ -1,6 +1,6 @@
-from src.repositories.base_repository import BaseRepository
+from .base_repository import BaseRepository
 from src.models.models import InputFileMetadata
-from sqlalchemy.orm import Session
+
 
 class InputFileRepository(BaseRepository[InputFileMetadata]):
     """
