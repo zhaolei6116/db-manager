@@ -1,7 +1,0 @@
-# config/config.yaml
-database:
-  user: bioinfo_user
-  password: 123456
-  host: 192.168.100.13  # 如果测试节点与 MySQL 容器不在同一节点，替换为容器节点 IP
-  port: 3306
-  database: bioinfo_db

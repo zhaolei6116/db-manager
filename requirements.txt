@@ -1,9 +1,15 @@
+python=3.12
 SQLAlchemy>=2.0.0,<3.0.0
 PyYAML>=6.0,<7.0
 APScheduler>=3.10.0,<4.0.0
 pymysql>=1.1.0,<2.0.0
-# logging 是内置模块，无需安装，但如果需要扩展（如rotating logs），可选添加：
-# python-logging-handlers 不是标准；实际使用内置logging即可。
-# 后续任务可能添加：pydantic>=2.0 (验证), pytest>=7.0 (测试)
-# requests>=2.0 (HTTP请求), Flask>=2.0 (Web框架)
-# 具体依赖根据项目需求调整 
+
+# 新增：lims_python 模块必装依赖（用于HTTP请求、重试、类型提示等）
+requests==2.32.3          # lims_python用requests发HTTP请求拉取LIMS数据
+urllib3>=1.26.0,<2.0.0           # requests依赖urllib3，lims_python直接用到urllib3.util.Retry
+
+
+
+# 新增：可选优化依赖（提升稳定性和调试效率，建议安装）
+tenacity>=8.2.0,<9.0.0           # 可选：更优雅的重试机制（可替换urllib3重试，后续可优化拉取脚本）
+python-dotenv>=1.0.0,<2.0.0      # 可选：环境变量管理（若后续需通过.env文件配置数据库密码/API密钥）

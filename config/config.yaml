@@ -1,3 +1,5 @@
+# config/config.yaml
+
 # 数据库配置
 database:
   host: localhost
@@ -11,13 +13,18 @@ ingestion:
   lims_data_path: /path/to/LimsData/
   scan_interval: 1800  # 30 minutes
 
-# 测序数据配置
-sequence_data:
-  sequence_data_path: /path/to/sequence
-  sequence_name: Sequenator
-  dir1: no_sample_id
-  dir2: fastq_pass
-  key_file: html
+# lims 数据配置
+pull_request:
+  # 可以拉取的实验室
+  labs:
+    - W
+    - S
+    - B
+    - G
+    - T
+  START_OFFSET: 24 # 小时
+  path: LimsData/
+
 
 # 原始数据字段映射
 fields_mapping:
@@ -72,19 +79,28 @@ fields_mapping:
       report_path: Report_path
       report_raw_path: Report_raw_path
 
+# 测序数据配置
+sequence_data:
+  sequence_data_path: /bioinformation/Project/Sequencing
+  sequence_name: Sequenator
+  dir1: no_sample_id
+  dir2: fastq_pass
+  key_file: html
+
+
 # 路径模板
 sequence_run:
-  lab_sequencer_id_template: "{laboratory}{sequence_name}{sequencer_id}"
-  barcode_template: "{barcode_prefix}{barcode_number}"
-  batch_id_path_template: "{sequence_data_path}/{lab_sequencer_id}/{batch_id}"
-  raw_data_path_template: "{batch_id_path}/{dir1}/{run_name}/{dir2}/{barcode}"
+  lab_sequencer_id: "{fields_mapping.batch.laboratory}{sequence_data.sequence_name}{fields_mapping.batch.sequencer_id}"
+  barcode: "{fields_mapping.sequence.barcode_prefix}{fields_mapping.sequence.barcode_number}"
+  batch_id_path: "{sequence_data.sequence_data_path}/{sequence_run.lab_sequencer_id}/{fields_mapping.batch.batch_id}"
+  raw_data_path_template: "{sequence_run.batch_id_path}/{sequence_data.dir1}/{run_name}/{sequence_data.dir2}/{sequence_run.barcode}"
 
 
 
 # 项目类型分析路径
 project_type:
-  16SAMP: "/path/to/16s"
-  Bacterial_assembly: "/path/to/bacass"
+  16SAMP: "/nas02/project/zhaolei/test_data_manger/16s"
+  Bacterial_assembly: "/nas02/project/zhaolei/test_data_manger/bacass"
 
 # 新字段规则
 new_field_rules:
@@ -92,7 +108,8 @@ new_field_rules:
     table: sequence
     data_type: VARCHAR(50)
     default_value: ""
-    action: reanalyze
+    action: ignore   # 忽略但提示管理员
+    reason: "新字段，需要手动添加"
 
 # 更新触发规则
 table_update_triggers:
@@ -149,3 +166,25 @@ table_update_triggers:
     newrecord:
       - sample_id
       - batch_id
+
+
+# 日志配置
+logging:
+  log_dir: log/          # 日志存储路径
+  log_level: INFO             # 日志级别（DEBUG/INFO/WARNING/ERROR）
+  max_bytes: 10485760         # 单个日志文件最大大小（10MB）
+  backup_count: 5             # 日志文件备份数量
+
+# 所有调度器的配置
+scheduler:
+  # LIMS数据拉取调度器配置
+  lims:
+    interval_minutes: 30  # 每30分钟执行一次
+  
+  # 下机路径扫描调度器配置
+  sequencing:
+    interval_minutes: 15  # 每15分钟执行一次
+  
+  # 分析信息录入调度器配置
+  analysis:
+    interval_minutes: 60  # 每小时执行一次

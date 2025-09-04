@@ -150,6 +150,7 @@ CREATE TABLE analysis_tasks (
 -- 创建 input_file_metadata 表（辅助表）
 CREATE TABLE input_file_metadata (
     file_name VARCHAR(255) PRIMARY KEY,                   -- JSON文件名，如T22507265020.json
+    process_status ENUM('pending', 'success', 'failed') DEFAULT 'pending', -- 处理状态
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP         -- 记录生成时间，自动生成时间戳
 );
 
@@ -196,4 +197,5 @@ CREATE TABLE sample_analysis_path_record (
     INDEX idx_sample_op_time (sample_id, operation_type, created_at)
 );
 
-
+ALTER TABLE input_file_metadata 
+ADD COLUMN process_status ENUM('pending', 'success', 'failed') NOT NULL DEFAULT 'pending';
