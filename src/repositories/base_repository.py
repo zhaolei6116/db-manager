@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Generic, TypeVar, Optional, List, Dict, Any, Type
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy import inspect, or_, and_
+from sqlalchemy import inspect, or_, and_, text
 from src.models.models import FieldCorrections  # 字段修正日志表
 import logging
 from datetime import datetime
@@ -350,3 +350,71 @@ class BaseRepository(ABC, Generic[ModelType]):
         except SQLAlchemyError as e:
             logger.error(f"Failed to upsert {self.model.__name__}: {str(e)}", exc_info=True)
             raise
+    
+
+    # ========================================================================
+    # ✅ 7. 表结构操作（新增）
+    # ========================================================================
+
+    def add_table_field(self, field_name: str, field_type: str, description: str = "") -> Dict[str, Any]:
+        """
+        添加表字段（列）的接口
+        
+        Args:
+            field_name: 字段名（需符合数据库命名规范）
+            field_type: 字段类型（如 'VARCHAR(100)', 'INT', 'DATETIME', 'DECIMAL(10,2)'）
+            description: 字段描述（可选，用于文档记录）
+        
+        Returns:
+            操作结果字典，包含:
+            - success: bool 操作是否成功
+            - message: str 操作结果描述
+            - table_name: str 表名
+            - field_name: str 字段名
+        """
+        try:
+            table_name = self.model.__tablename__
+            logger.info(f"开始处理表 [{table_name}] 添加字段: {field_name}（类型: {field_type}，描述: {description}）")
+
+            # 1. 检查字段是否已存在
+            inspector = inspect(self.db_session.bind)
+            existing_columns = [col['name'] for col in inspector.get_columns(table_name)]
+            if field_name in existing_columns:
+                logger.warning(f"表 [{table_name}] 已存在字段 [{field_name}]，无需重复添加")
+                return {
+                    "success": False,
+                    "message": f"字段 [{field_name}] 已存在于表 [{table_name}]",
+                    "table_name": table_name,
+                    "field_name": field_name
+                }
+
+            # 2. 执行添加字段 SQL
+            alter_sql = f"ALTER TABLE {table_name} ADD COLUMN {field_name} {field_type}"
+            self.db_session.execute(text(alter_sql))
+            logger.info(f"表 [{table_name}] 字段 [{field_name}] 添加成功")
+
+            return {
+                "success": True,
+                "message": f"成功为表 [{table_name}] 添加字段 [{field_name}]（类型: {field_type}）",
+                "table_name": table_name,
+                "field_name": field_name
+            }
+
+        except SQLAlchemyError as e:
+            logger.error(f"表 [{table_name}] 添加字段 [{field_name}] 失败（SQL错误）", exc_info=True)
+            return {
+                "success": False,
+                "message": f"数据库操作失败: {str(e)}",
+                "table_name": table_name,
+                "field_name": field_name
+            }
+        except Exception as e:
+            logger.error(f"表 [{table_name}] 添加字段 [{field_name}] 失败（系统错误）", exc_info=True)
+            return {
+                "success": False,
+                "message": f"系统错误: {str(e)}",
+                "table_name": table_name,
+                "field_name": field_name
+            }
+
+    
