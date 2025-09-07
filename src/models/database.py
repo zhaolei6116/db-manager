@@ -3,7 +3,7 @@ import configparser
 from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-from typing import Optional
+from typing import Optional, Generator
 from contextlib import contextmanager
 
 # 数据库连接池配置（优化性能）
@@ -77,17 +77,6 @@ def get_engine(config_file: Optional[str] = None) -> create_engine:
     return engine
 
 
-# def get_session(config_file: Optional[str] = None) -> Session:
-#     """
-#     获取SQLAlchemy会话（每次调用返回新会话，使用后需关闭）
-#     :param config_file: 数据库配置文件路径
-#     :return: SQLAlchemy会话
-#     """
-#     engine = get_engine(config_file)
-#     # 创建会话工厂
-#     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-#     # 返回新会话
-#     return SessionLocal()
 
 @contextmanager
 def get_session(config_file: Optional[str] = None) -> Generator[Session, None, None]:
