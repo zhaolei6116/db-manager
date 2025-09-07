@@ -1,8 +1,10 @@
-"""YAML配置文件处理工具
-
-提供统一接口加载和解析YAML格式的配置文件，支持按节点路径查询配置项，
-自动处理配置文件不存在、节点缺失等异常情况。
+# src/utils/yaml_config.py
 """
+YAML配置文件处理工具
+提供统一接口加载和解析YAML格式的配置文件，为每个配置模块提供专用接口。
+支持按节点路径查询配置项，自动处理配置文件不存在、节点缺失等异常情况。
+"""
+
 import os
 import yaml
 from pathlib import Path
@@ -11,8 +13,7 @@ import logging
 
 # 初始化日志
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("YAMLConfig")
-
+logger = logging.getLogger(__name__)
 
 class YAMLConfig:
     """YAML配置文件处理器"""
@@ -27,11 +28,11 @@ class YAMLConfig:
         self.config_path = self._get_default_config_path() if not config_file else config_file
         self.config_data = self._load_config()
         self._validate_core_config()
+        
 
     def _get_default_config_path(self) -> str:
         """获取默认配置文件路径（config/config.yaml）"""
-        # 从当前文件路径向上查找项目根目录
-        current_dir = Path(__file__).absolute().parent.parent.parent  # src/utils/ → src/ → 项目根目录
+        current_dir = Path(__file__).absolute().parent.parent.parent  # src/utils/ -> src/ -> 项目根目录
         default_path = current_dir / "config" / "config.yaml"
         return str(default_path)
 
@@ -39,15 +40,12 @@ class YAMLConfig:
         """加载并解析YAML配置文件"""
         config_path = Path(self.config_path).absolute()
         
-        # 检查文件是否存在
         if not config_path.exists():
             raise FileNotFoundError(f"配置文件不存在：{config_path}")
         
-        # 检查是否为文件
         if not config_path.is_file():
             raise IsADirectoryError(f"配置路径不是文件：{config_path}")
         
-        # 读取并解析YAML
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
                 config_data = yaml.safe_load(f) or {}
@@ -57,23 +55,24 @@ class YAMLConfig:
             raise ValueError(f"YAML配置文件解析错误：{str(e)}（文件：{config_path}）")
         except Exception as e:
             raise RuntimeError(f"加载配置文件失败：{str(e)}（文件：{config_path}）")
-    
 
     def _validate_core_config(self) -> None:
         """验证核心配置节点（字段处理器必需）"""
         required_sections = [
-            "fields_mapping", 
+            "database",
+            "fields_mapping",
             "table_update_triggers",
             "pull_request",
-            "sequence_data",
-            "ingestion"
+            "sequence_info",
+            "ingestion",
+            "sequence_run",
+            "project_type",
+            "logging",
+            "scheduler"
         ]
-        
         missing = [sec for sec in required_sections if sec not in self.config_data]
         if missing:
-            raise ValueError(f"字段处理器所需配置节点缺失：{missing}（文件：{self.config_path}）")
-
-
+            raise ValueError(f"配置文件缺少必填节点：{missing}（文件：{self.config_path}）")
 
     def get(self, path: str, default: Any = None, required: bool = False) -> Any:
         """
@@ -90,14 +89,12 @@ class YAMLConfig:
         Examples:
             >>> config.get("pull_request.labs")
             ['W', 'S', 'B', 'G', 'T']
-            
             >>> config.get("ingestion.scan_interval")
             1800
         """
         keys = path.split('.')
         current = self.config_data
         
-        # 逐级查找节点
         for key in keys:
             if not isinstance(current, dict) or key not in current:
                 if required:
@@ -107,39 +104,18 @@ class YAMLConfig:
         
         return current
 
-
-
-    def get_table_update_triggers(self, table: Optional[str] = None) -> Dict[str, Any]:
-        """
-        获取表更新触发规则
-        
-        Args:
-            table: 可选表名，指定则只返回该表的规则
-        """
-        triggers = self.get("table_update_triggers", required=True)
-        if table:
-            if table not in triggers:
-                raise KeyError(f"更新触发规则中缺少表{table}的配置（table_update_triggers.{table}）")
-            return triggers[table]
-        return triggers
-    
-
-    def get_new_field_rules(self) -> List[Dict[str, Any]]:
-        """获取新字段处理规则"""
-        return self.get("new_field_rules", default=[], required=False)
-    
-    def get_sequence_run_templates(self) -> Dict[str, str]:
-        """获取测序运行路径模板"""
-        return self.get("sequence_run", required=True)
-
-
-    def get_pull_request_config(self) -> Dict[str, Any]:
-        """获取lims拉取相关配置（pull_request节点）"""
-        return self.get("pull_request", required=True)
+    # 专用接口：为每个配置模块提供独立的方法
+    def get_database_config(self) -> Dict[str, Any]:
+        """获取数据库配置（database节点）"""
+        return self.get("database", required=True)
 
     def get_ingestion_config(self) -> Dict[str, Any]:
-        """获取数据摄入相关配置（ingestion节点）"""
+        """获取数据摄入配置（ingestion节点）"""
         return self.get("ingestion", required=True)
+
+    def get_pull_request_config(self) -> Dict[str, Any]:
+        """获取LIMS拉取配置（pull_request节点）"""
+        return self.get("pull_request", required=True)
 
     def get_fields_mapping(self, table: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -158,46 +134,73 @@ class YAMLConfig:
             return mappings[table]
         return mappings
 
-    def get_sequence_run_templates(self) -> Dict[str, str]:
-        """获取测序路径模板配置（sequence_run节点）"""
+    def get_sequence_info_config(self) -> Dict[str, Any]:
+        """获取测序数据配置（sequence_data节点）"""
+        return self.get("sequence_info", required=True)
+
+    def get_sequence_run_config(self) -> Dict[str, str]:
+        """获取测序运行路径模板配置（sequence_run节点）"""
         return self.get("sequence_run", required=True)
 
-    def get_project_type_paths(self) -> Dict[str, str]:
+    def get_project_type_config(self) -> Dict[str, str]:
         """获取项目类型分析路径配置（project_type节点）"""
         return self.get("project_type", required=True)
+
+    def get_new_field_rules(self) -> List[Dict[str, Any]]:
+        """获取新字段处理规则（new_field_rules节点）"""
+        return self.get("new_field_rules", default=[], required=False)
+
+    def get_table_update_triggers(self, table: Optional[str] = None) -> Dict[str, Any]:
+        """
+        获取表更新触发规则（table_update_triggers节点）
+        
+        Args:
+            table: 可选表名，指定则只返回该表的规则
+        """
+        triggers = self.get("table_update_triggers", required=True)
+        if table:
+            if table not in triggers:
+                raise KeyError(f"更新触发规则中缺少表{table}的配置（table_update_triggers.{table}）")
+            return triggers[table]
+        return triggers
+
+    def get_log_config(self) -> Dict[str, Any]:
+        """获取日志配置（logging节点）"""
+        return {
+            "log_dir": self.get("logging.log_dir", default="./logs/", required=True),
+            "log_level": self.get("logging.log_level", default="INFO", required=True),
+            "max_bytes": self.get("logging.max_bytes", default=10485760, required=True),
+            "backup_count": self.get("logging.backup_count", default=5, required=True)
+        }
+
+    def get_scheduler_config(self) -> Dict[str, Any]:
+        """获取调度器配置（scheduler节点）"""
+        return self.get("scheduler", required=True)
+
+    def render_template(self, template_path: str, **kwargs: Any) -> str:
+        """
+        渲染模板字符串，使用 src/utils/template_renderer.py 的 TemplateRenderer
+        
+        Args:
+            template_path: 配置中的模板路径（如"sequence_run.lab_sequencer_id"）
+            **kwargs: 额外的模板变量
+        
+        Returns:
+            渲染后的字符串
+        """
+        template_str = self.get(template_path, required=True)
+        context = {**self.get_all_config(), **kwargs}
+        return self.template_renderer.render_template(template_str, context)
 
     def get_all_config(self) -> Dict[str, Any]:
         """返回完整的配置字典"""
         return self.config_data
-    
-    # 在YAMLConfig类中添加
-    def get_log_config(self) -> Dict[str, Any]:
-        """获取日志配置（默认路径和级别）"""
-        return {
-            "log_dir": self.get("logging.log_dir", "./logs/"),
-            "log_level": self.get("logging.log_level", "INFO"),
-            "max_bytes": self.get("logging.max_bytes", 10485760),  # 10MB
-            "backup_count": self.get("logging.backup_count", 5)
-        }
 
     def __str__(self) -> str:
         return f"YAMLConfig(file={self.config_path})"
-    
-    def render_template(self, template_path: str, **kwargs: Any) -> str:
-        """渲染模板字符串"""
-        template_str = self.get(template_path, required=True)
-        try:
-            context = {** self.get_all_config(), **kwargs}
-            return Template(template_str).substitute(context)
-        except KeyError as e:
-            raise ValueError(f"模板渲染缺少变量：{str(e)}，模板路径：{template_path}")
-        except Exception as e:
-            raise RuntimeError(f"模板渲染失败：{str(e)}，模板路径：{template_path}")
-
 
 # 单例模式：全局共享一个配置实例
 _config_instance: Optional[YAMLConfig] = None
-
 
 def get_yaml_config(config_file: Optional[str] = None) -> YAMLConfig:
     """
@@ -215,32 +218,60 @@ def get_yaml_config(config_file: Optional[str] = None) -> YAMLConfig:
     return _config_instance
 
 
-# 测试配置加载
-if __name__ == "__main__":
-    try:
-        # 加载默认配置文件
-        config = get_yaml_config()
-        
-        # 示例：获取各类配置
-        print("拉取配置:", config.get_pull_request_config())
-        print("实验室列表:", config.get("pull_request.labs"))
-        print("摄入配置:", config.get_ingestion_config())
-        print("样本字段映射:", config.get_fields_mapping("sample"))
-        print("路径模板:", config.get_sequence_run_templates())
-        # 测试字段映射配置
-        print("项目表字段映射:", config.get_fields_mapping("project"))
-        
-        # 测试更新触发规则
-        print("样本表更新规则:", config.get_table_update_triggers("sample"))
-        
-        # 测试新字段规则
-        print("新字段处理规则:", config.get_new_field_rules())
 
-        # 测试必填项缺失（故意查询不存在的节点）
-        try:
-            config.get("non_existent.node", required=True)
-        except KeyError as e:
-            print(f"正确捕获异常: {e}")
-            
+
+# 添加测试代码块
+if __name__ == "__main__":
+    """测试YAMLConfig类的基本功能：配置加载、解析和获取配置项"""
+    import sys
+    from pprint import pformat  # 用于格式化输出配置内容
+
+    # 配置日志为DEBUG级别，显示详细测试过程
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    test_logger = logging.getLogger("YAMLConfigTest")
+
+    try:
+        # 测试单例模式获取配置实例
+        test_logger.info("=== 测试单例模式获取配置实例 ===")
+        config = get_yaml_config()
+        test_logger.debug(f"成功获取配置实例: {config}")
+
+        # 验证配置文件路径
+        test_logger.info("\n=== 验证配置文件路径 ===")
+        test_logger.info(f"当前加载的配置文件路径: {config.config_path}")
+        if Path(config.config_path).exists():
+            test_logger.info("配置文件存在，路径验证通过")
+        else:
+            test_logger.warning("配置文件路径不存在，请检查默认路径是否正确")
+
+        # 测试获取核心配置节点
+        test_logger.info("\n=== 测试获取核心配置节点 ===")
+        
+        # 1. 测试数据库配置
+        db_config = config.get_database_config()
+        test_logger.debug(f"数据库配置内容: \n{pformat(db_config)}")
+        test_logger.info(f"数据库类型: {db_config.get('type')}, 主机地址: {db_config.get('host')}")
+
+        # 2. 测试字段映射配置（以project表为例）
+        project_mapping = config.get_fields_mapping("project")
+        test_logger.debug(f"project表字段映射: \n{pformat(project_mapping)}")
+        test_logger.info(f"project表映射字段数量: {len(project_mapping)}")
+
+        # 3. 测试序列信息配置
+        sequence_info = config.get_sequence_info_config()
+        test_logger.debug(f"序列信息配置: \n{pformat(sequence_info)}")
+        test_logger.info(f"序列数据路径: {sequence_info.get('sequence_data_path')}")
+
+        # 4. 测试按路径获取配置项（嵌套节点）
+        test_logger.info("\n=== 测试按路径获取嵌套配置项 ===")
+        scan_interval = config.get("ingestion.scan_interval")
+        test_logger.info(f"数据摄入扫描间隔: {scan_interval}秒")
+
+        test_logger.info("\n=== 所有测试项执行完成 ===")
+
     except Exception as e:
-        logger.error(f"配置测试失败: {str(e)}", exc_info=True)
+        test_logger.error(f"测试过程中发生错误: {str(e)}", exc_info=True)
+        sys.exit(1)
