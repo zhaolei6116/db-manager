@@ -29,58 +29,50 @@ pull_request:
 # 原始数据字段映射
 fields_mapping:
   project:
-    key: Client
-    fields:
-      project_id: Client
-      custom_name: Custom_name
-      user_name: user_name
-      mobile: Mobile
-      remarks: Remarks
+    project_id: Client
+    custom_name: Custom_name
+    user_name: user_name
+    mobile: Mobile
+    remarks: Remarks
   sample:
-    key: Detect_no
-    fields:
-      sample_id: Detect_no
-      project_id: Client
-      sample_name: Sample_name
-      sample_type: Sample_type
-      sample_type_raw: Sample_type_raw
-      resistance_type: Resistance_type
-      project_type: Project
-      species_name: Species_name
-      genome_size: Genome_size
-      data_volume: Data_volume
-      ref: Ref
-      plasmid_length: PLASMID_LENGTH
-      length: Length
+    sample_id: Detect_no
+    project_id: Client
+    sample_name: Sample_name
+    sample_type: Sample_type
+    sample_type_raw: Sample_type_raw
+    resistance_type: Resistance_type
+    project_type: Project
+    species_name: Species_name
+    genome_size: Genome_size
+    data_volume: Data_volume
+    ref: Ref
+    plasmid_length: PLASMID_LENGTH
+    length: Length
   batch:
-    key: Batch_id
-    fields:
-      batch_id: Batch_id
-      sequencer_id: Sequencer_id
-      laboratory: Laboratory
+    batch_id: Batch_id
+    sequencer_id: Sequencer_id
+    laboratory: Laboratory
   sequence:
-    key: [Detect_no, Batch_id]
-    fields:
-      sample_id: Detect_no
-      batch_id: Batch_id
-      board: Board
-      board_id: Board_id
-      machine_ver: Machine_ver
-      barcode_type: Barcode_type
-      barcode_prefix: Barcode_prefix
-      barcode_number: Barcode_number
-      reanalysis_times: Reanalysis_times
-      experiment_times: Experiment_times
-      allanalysis_times: Allanalysis_times
-      experiment_no: Experiment_no
-      sample_con: Sample_con
-      sample_status: Sample_status
-      unqualifytime: Unqualifytime
-      report_path: Report_path
-      report_raw_path: Report_raw_path
+    sample_id: Detect_no
+    batch_id: Batch_id
+    board: Board
+    board_id: Board_id
+    machine_ver: Machine_ver
+    barcode_type: Barcode_type
+    barcode_prefix: Barcode_prefix
+    barcode_number: Barcode_number
+    reanalysis_times: Reanalysis_times
+    experiment_times: Experiment_times
+    allanalysis_times: Allanalysis_times
+    experiment_no: Experiment_no
+    sample_con: Sample_con
+    sample_status: Sample_status
+    unqualifytime: Unqualifytime
+    report_path: Report_path
+    report_raw_path: Report_raw_path
 
 # 测序数据配置
-sequence_data:
+sequence_info:
   sequence_data_path: /bioinformation/Project/Sequencing
   sequence_name: Sequenator
   dir1: no_sample_id
