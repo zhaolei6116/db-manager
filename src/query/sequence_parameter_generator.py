@@ -123,7 +123,7 @@ class SequenceParameterGenerator:
                         # 直接使用字段名（默认从sequence表获取）
                         if hasattr(sequence, value):
                             parameter_json[key] = getattr(sequence, value)
-            
+                            
             return parameter_json
             
         except Exception as e:

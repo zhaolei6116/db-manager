@@ -46,6 +46,7 @@ class SequenceValidation:
         3. 根据config.yaml中的sequence_info配置验证路径
         4. 记录验证结果，但不更新数据状态
         5. 对超过2小时未满足条件的记录报出原因
+        6. 对有效的路径更新 raw_data_path 为最终路径
         
         Returns:
             tuple: (验证通过的记录主键列表, 总验证记录数)
@@ -100,7 +101,7 @@ class SequenceValidation:
                     try:
                         self.sequence_repo.update_sequence_fields(
                             sequence_id=sequence_id,
-                            raw_data_path=str(result)
+                            update_data={"raw_data_path": str(result)}
                         )
                         logger.info(f"已更新sequence_id={sequence_id}的raw_data_path字段为: {result}")
                     except Exception as update_err:
