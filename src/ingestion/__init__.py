@@ -7,11 +7,11 @@
 """
 
 # 从子模块导入核心功能，简化外部调用
-from .field_mapper import map_fields
+from .lims_puller import run_lims_puller
 from .lims_puller import get_all_json_in_lims_dir
 
 # 定义公共API，控制`from ingestion import *`的行为
 __all__ = [
-    "map_fields",          # 字段映射核心函数
     "get_all_json_in_lims_dir"  # LIMS目录JSON文件发现函数
+    "run_lims_puller"  # LIMS数据拉取函数
 ]

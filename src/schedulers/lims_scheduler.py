@@ -2,7 +2,7 @@
 from apscheduler.triggers.cron import CronTrigger
 
 from src.schedulers.base_scheduler import BaseScheduler
-from src.ingestion.lims_puller import run_lims_puller, get_all_json_in_lims_dir
+from src.services.ingestion_service import run_ingestion_process
 
 
 class LIMSScheduler(BaseScheduler):
@@ -36,17 +36,14 @@ class LIMSScheduler(BaseScheduler):
         self.logger.info("开始执行LIMS数据拉取任务")
         
         try:
-            # 1. 扫描 Limes 未分析样本，执行拉取操作
-            result = run_lims_puller()
+            # 调用完整的数据录入流程
+            result = run_ingestion_process()
             
-            # 3. 记录结果
-            if result.success:
-                self.logger.info(
-                    f"LIMS数据拉取完成，成功处理{result.success_count}个文件，"
-                    f"失败{result.failure_count}个"
-                )
+            # 记录处理结果
+            if "error" in result:
+                self.logger.warning(f"LIMS数据拉取任务执行完成，但包含错误: {result['error']}")
             else:
-                self.logger.error(f"LIMS数据拉取任务执行失败: {result.message}")
+                self.logger.info(f"LIMS数据拉取任务执行完成: 总文件数{result['total']}，成功{result['success_count']}，失败{result['failure_count']}")
                 
         except Exception as e:
             self.logger.error(f"LIMS数据拉取任务执行过程中发生异常", exc_info=True)

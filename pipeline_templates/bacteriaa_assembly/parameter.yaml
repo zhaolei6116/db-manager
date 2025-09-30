@@ -1,0 +1,74 @@
+# bacteria_assembly 流程参数配置
+# 此配置用于定义从数据库表中提取并填充到 sequence.parameter 字段的参数映射
+
+project_type: bacteria_assembly
+
+# 导出参数配置
+export_headers:
+  - sequence_id
+  - Project_type
+  - Project_id
+  - Sample_id
+  - Sample_name
+  - Species_name
+  - Genome_size
+  - Data_volume
+  - Barcode
+  - Barcode_type
+  - Machine_version
+  - Path
+  - Data_volume
+  - Report_path
+  - Report_raw_path
+
+# 字段映射配置 - 使用表.字段格式简化配置
+field_mappings:
+  sequence_id: sequence.sequence_id
+  Project_type: sequence.project_type
+  Project_id: sequence.project_id
+  Sample_id: sequence.sample_id
+  Sample_name: sample.sample_name
+  Species_name: sequence.species_name
+  Genome_size: sequence.genome_size
+  Data_volume: sequence.data_volume 
+  Barcode: sequence.barcode
+  Barcode_type: sequence.barcode_type
+  Machine_version: sequence.machine_ver
+  Path: sequence.raw_data_path
+  Report_path: sequence.report_path
+  Report_raw_path: sequence.report_raw_path
+
+# 表关联规则配置
+join_rules:
+  # 默认关联规则
+  default:
+    source_table: sequence
+    join_type: LEFT JOIN
+  
+  # 特定表关联规则
+  sample: 
+    source_key: sample_id
+    target_key: id
+  project:
+    source_key: project_id
+    target_key: id
+
+# 输出格式配置 - JSON格式用于数据库存储
+output:
+  # 输出格式类型
+  format_type: json
+  # JSON格式选项
+  json_options:
+    # 是否美化JSON输出
+    pretty_print: false
+    # 确保所有字符串都是UTF-8编码
+    ensure_ascii: false
+    # 空值处理方式
+    null_value: null
+  # 数据库存储相关配置
+  db_storage:
+    # 目标字段名
+    target_field: parameter
+    # 是否合并为单一JSON对象
+    merge_as_single_object: true
+

@@ -9,7 +9,7 @@ services:
     container_name: bioinfo_mysql
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: bioinfo_db
+      MYSQL_DATABASE: bio_db
       MYSQL_ROOT_PASSWORD: vklz123
       MYSQL_USER: bioinfo_user
       MYSQL_PASSWORD: 123456
@@ -18,7 +18,7 @@ services:
     volumes:
       - /nas02/project/zhaolei/database/mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ppassword"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pvklz123"]
       interval: 30s
       timeout: 3s
       retries: 3

@@ -3,7 +3,7 @@
 """
 import logging
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -33,129 +33,117 @@ class LIMSDataProcessor:
             "project": ProjectProcessor(self.db_session),
             "sample": SampleProcessor(self.db_session),
             "batch": BatchProcessor(self.db_session),
-            "sequence": CombinedSequenceProcessor(self.db_session)
+            "sequence": CombinedSequenceProcessor(self.db_session)  # 处理合并后的sequence和sequence_run数据
         }
         
         # 处理顺序从配置获取
         self.process_order = self.config.get("processing.business_tables", 
                                            ["project", "sample", "batch", "sequence"])
     
-    def process_single_file(self, json_path: Path) -> bool:
-        """处理单个JSON文件"""
-        file_name = json_path.name
-        self.logger.info(f"开始处理文件：{json_path}")
+    def process_parsed_json_dict(self, parsed_data: Dict[str, Dict[str, Any]], db_session: Session, source_name: str = "parsed_json") -> Dict[str, Any]:
+        """
+        处理从json_data_processor生成的字典数据
+        
+        Args:
+            parsed_data: 从json_data_processor处理得到的字典，包含project、sample、batch、sequence四个表的数据
+            db_session: 外部传入的数据库会话，事务由上层控制
+            source_name: 数据源名称，用于日志和状态跟踪
+            
+        Returns:
+            处理结果字典，包含各表处理状态
+        """
+        self.logger.info(f"开始处理解析后的JSON字典数据，源名称：{source_name}")
+        
+        # 初始化结果
+        result = {
+            "source": source_name,
+            "tables": {},
+            "success": True
+        }
         
         try:
-            # 1. 检查文件是否已处理
-            if self.file_manager.check_file_existence(file_name):
-                self.logger.info(f"文件[{file_name}]已处理过，跳过")
-                return True
+            # 使用外部session创建processors对象，保证在同一事务中
+            processors = {
+                "project": ProjectProcessor(db_session),
+                "sample": SampleProcessor(db_session),
+                "batch": BatchProcessor(db_session),
+                "sequence": CombinedSequenceProcessor(db_session)
+            }
             
-            # 2. 新文件入库
-            self.file_manager.insert_new_file(file_name, str(json_path))
-            
-            # 3. 解析JSON数据
-            json_data = self.file_manager.parse_json_file(json_path)
-            if not json_data:
-                raise ValueError(f"文件[{file_name}]解析失败，无法继续处理")
-            
-            # 4. 按顺序处理所有业务表
-            all_success = True
+            # 按顺序处理各业务表
             for table_name in self.process_order:
-                processor = self.processors.get(table_name)
-                if not processor:
-                    self.logger.warning(f"未找到[{table_name}]表的处理器，跳过")
+                if table_name not in parsed_data:
+                    self.logger.warning(f"解析数据中缺少[{table_name}]表的数据，跳过")
+                    result["tables"][table_name] = {"status": "skipped", "reason": "data_not_found"}
                     continue
                 
-                # 处理单个表
-                success = processor.process(json_data, file_name)
-                all_success = all_success and success
+                processor = processors.get(table_name)
+                if not processor:
+                    self.logger.warning(f"未找到[{table_name}]表的处理器，跳过")
+                    result["tables"][table_name] = {"status": "skipped", "reason": "processor_not_found"}
+                    continue
+                
+                # 获取表数据并交给对应处理器处理
+                table_data = parsed_data[table_name]
+                success = processor.process(table_data, source_name)
+                result["tables"][table_name] = {"status": "success" if success else "failed"}
+                
+                # 更新整体成功状态
+                result["success"] = result["success"] and success
                 
                 # 关键表处理失败则终止后续处理
                 if not success and table_name in ["project", "sample", "batch"]:
                     self.logger.warning(f"关键表[{table_name}]处理失败，终止后续表处理")
-                    all_success = False
                     break
             
-            # 5. 更新文件处理状态
-            if all_success:
-                self.file_manager.update_file_status(file_name, "success")
-                self.logger.info(f"文件[{file_name}]处理完成（所有业务表处理成功）")
-                return True
-            else:
-                self.file_manager.update_file_status(file_name, "failed", "部分业务表处理失败")
-                self.logger.warning(f"文件[{file_name}]处理完成（部分业务表处理失败）")
-                return False
-        
+            self.logger.info(f"解析后的JSON字典数据处理完成，源名称：{source_name}，整体状态：{'成功' if result['success'] else '失败'}")
+            return result
+            
         except Exception as e:
-            self.file_manager.update_file_status(file_name, "failed", str(e)[:500])
-            self.logger.error(f"文件[{file_name}]处理异常", exc_info=True)
-            return False
-    
-    def process_all_new_files(self) -> Dict[str, Any]:
-        """批量处理所有新文件"""
-        self.logger.info("开始批量处理LIMS新文件")
-        
-        new_files = self.file_manager.get_new_file_list()
-        total = len(new_files)
-        success_count = 0
-        failure_count = 0
-        
-        for file_path in new_files:
-            processed = self.process_single_file(file_path)
-            if processed:
-                success_count += 1
-            else:
-                failure_count += 1
-        
-        result = {
-            "total": total,
-            "success_count": success_count,
-            "failure_count": failure_count,
-            "process_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-        
-        self.logger.info(
-            f"批量处理完成：总文件数{total}，成功{success_count}，失败{failure_count}"
-        )
-        return result
-    
-    def close(self) -> None:
-        """关闭所有资源"""
-        self.file_manager.close()
-        for processor in self.processors.values():
-            if hasattr(processor, "close"):
-                processor.close()
+            error_msg = str(e)[:500]
+            self.logger.error(f"处理解析后的JSON字典数据时发生异常，源名称：{source_name}", exc_info=True)
+            result["success"] = False
+            result["error"] = error_msg
+            return result
 
-
-def run_lims_data_process() -> Dict[str, Any]:
-    """LIMS数据处理入口接口"""
-    processor = None
-    try:
-        processor = LIMSDataProcessor()
-        return processor.process_all_new_files()
-    except Exception as e:
-        logger = get_lims_puller_logger()
-        logger.error("LIMS数据处理入口接口异常", exc_info=True)
-        return {
-            "total": 0,
-            "success_count": 0,
-            "failure_count": 0,
-            "error": str(e),
-            "process_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-    finally:
-        if processor:
-            processor.close()
+    
 
 
 # 测试入口
 if __name__ == "__main__":
-    # 单文件测试
-    test_file = Path("/nas02/project/zhaolei/pipeline/data_management/LimsData/25083011/S22508292761.json")
-    processor = LIMSDataProcessor()
-    processor.process_single_file(test_file)
+    # 测试process_parsed_json_dict方法
+    try:
+        from src.models.database import get_session
+        from src.processing.json_data_processor import DataProcessor
+        from contextlib import contextmanager
+        
     
-    # 批量测试
-    # result = run_lims_data_process()
-    # print(f"批量处理结果：{result}")
+        # 示例：使用process_parsed_json_dict方法处理数据
+        with get_session() as session:
+            try:
+                # 1. 创建DataProcessor实例并解析JSON文件
+                json_processor = DataProcessor()
+                test_json_path = Path("/home/zhaolei/project/LimsData/25092402/S22509231629_R1.json")
+                parsed_data = json_processor.parse_json_file(test_json_path)
+                
+                if parsed_data:
+                    # 2. 创建LIMSDataProcessor实例
+                    lims_processor = LIMSDataProcessor()
+                    
+                    # 3. 调用process_parsed_json_dict方法处理解析后的数据
+                    result = lims_processor.process_parsed_json_dict(
+                        parsed_data=parsed_data,
+                        db_session=session,
+                        source_name="test_example"
+                    )
+                    
+                    # 4. 打印处理结果
+                    print(f"处理结果：{result}")
+                    # 在实际应用中，上层代码会根据业务需求决定是否commit或rollback
+                    # session.commit()  # 上层控制事务
+                else:
+                    print("JSON文件解析失败")
+            except Exception as inner_e:
+                print(f"处理数据过程中发生异常：{str(inner_e)}")
+    except Exception as e:
+        print(f"测试过程中发生异常：{str(e)}")

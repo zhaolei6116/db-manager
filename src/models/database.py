@@ -1,10 +1,12 @@
 # src/models/database.py
-import configparser
 from pathlib import Path
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
-from typing import Optional, Generator
+from typing import Optional, Generator, Dict
 from contextlib import contextmanager
+
+# 导入YAML配置工具
+from src.utils.yaml_config import get_yaml_config
 
 # 数据库连接池配置（优化性能）
 POOL_SIZE = 10
@@ -12,57 +14,66 @@ MAX_OVERFLOW = 20
 POOL_RECYCLE = 3600  # 1小时回收连接，避免超时
 
 
-def get_db_config(config_file: Optional[str] = None) -> dict:
+def get_db_config(config_file: Optional[str] = None, user_role: Optional[str] = None) -> dict:
     """
-    读取数据库配置（从 config/database.ini 读取）
-    :param config_file: 配置文件路径（默认使用项目根目录的 config/database.ini）
+    读取数据库配置（从 config/config.yaml 读取）
+    支持多用户配置，可以根据角色选择不同的数据库用户
+    
+    :param config_file: 配置文件路径（可选，用于向后兼容）
+    :param user_role: 用户角色（reader/writer/admin/backup），默认为reader
     :return: 数据库配置字典（含host、port、user、password、database）
     """
-    # 1. 确定配置文件路径（默认项目根目录下的 config/database.ini）
-    if not config_file:
-        # 从脚本路径向上查找项目根目录（适配不同调用场景）
-        current_dir = Path(__file__).absolute().parent.parent.parent  # src/models/ → src/ → 项目根目录
-        config_file = current_dir / "config" / "database.ini"
+    # 使用YAML配置工具获取配置
+    config = get_yaml_config(config_file)
+    db_config = config.get_database_config()
     
-    # 2. 检查配置文件是否存在
-    if not Path(config_file).exists():
-        raise FileNotFoundError(f"数据库配置文件不存在：{config_file}")
+    # 默认使用reader角色
+    if not user_role:
+        user_role = "admin"
     
-    # 3. 读取配置
-    config = configparser.ConfigParser()
-    config.read(config_file, encoding="utf-8")
+    # 提取公共配置
+    result_config = {
+        "host": db_config.get("host", "localhost"),
+        "port": db_config.get("port", 3306),
+        "database": db_config.get("db_name", "bio_db"),
+        "charset": db_config.get("charset", "utf8mb4")
+    }
     
-    # 4. 提取[database]节点配置（确保所有关键键存在）
-    if "database" not in config.sections():
-        raise ValueError(f"配置文件 {config_file} 中缺少 [database] 节点")
+    # 提取用户特定配置
+    users_config = db_config.get("users", {})
+    if user_role not in users_config:
+        raise ValueError(f"配置文件中缺少用户角色 '{user_role}' 的配置")
     
-    db_config = dict(config["database"])
+    user_specific = users_config[user_role]
+    result_config["user"] = user_specific.get("user", "")
+    result_config["password"] = user_specific.get("password", "")
     
-    # 5. 校验必填配置项（避免KeyError）
+    # 校验必填配置项
     required_keys = ["host", "port", "user", "password", "database"]
-    missing_keys = [key for key in required_keys if key not in db_config or not db_config[key]]
+    missing_keys = [key for key in required_keys if key not in result_config or not result_config[key]]
     if missing_keys:
-        raise ValueError(f"数据库配置缺失必填项：{missing_keys}，请检查 {config_file}")
+        raise ValueError(f"数据库配置缺失必填项：{missing_keys}")
     
-    # 6. 转换port为整数（配置文件中默认是字符串，需转成int）
-    db_config["port"] = int(db_config["port"])
+    # 转换port为整数
+    result_config["port"] = int(result_config["port"])
     
-    return db_config
+    return result_config
 
 
-def get_engine(config_file: Optional[str] = None) -> create_engine:
+def get_engine(config_file: Optional[str] = None, user_role: Optional[str] = None) -> create_engine:
     """
     创建SQLAlchemy引擎（单例模式，避免重复创建连接）
-    :param config_file: 数据库配置文件路径
+    :param config_file: 数据库配置文件路径（可选）
+    :param user_role: 用户角色（reader/writer/admin/backup），默认为reader
     :return: SQLAlchemy引擎
     """
     # 读取数据库配置
-    db_config = get_db_config(config_file)
+    db_config = get_db_config(config_file, user_role)
     
     # 拼接MySQL连接字符串（格式：mysql+pymysql://user:password@host:port/database?charset=utf8mb4）
     connect_str = (
         f"mysql+pymysql://{db_config['user']}:{db_config['password']}"
-        f"@{db_config['host']}:{db_config['port']}/{db_config['database']}?charset=utf8mb4"
+        f"@{db_config['host']}:{db_config['port']}/{db_config['database']}?charset={db_config.get('charset', 'utf8mb4')}"
     )
     
     # 创建引擎（配置连接池）
@@ -79,17 +90,21 @@ def get_engine(config_file: Optional[str] = None) -> create_engine:
 
 
 @contextmanager
-def get_session(config_file: Optional[str] = None) -> Generator[Session, None, None]:
+def get_session(config_file: Optional[str] = None, user_role: Optional[str] = None) -> Generator[Session, None, None]:
     """
     获取数据库会话的上下文管理器
     使用方式：
-        with get_session() as db_session:
-            repo = SomeRepository(db_session)
-            repo.insert(...)
-    :param config_file: 配置文件路径
+        with get_session() as db_session:  # 默认使用reader角色
+            # 执行查询操作...
+        
+        with get_session(user_role="writer") as db_session:  # 使用writer角色
+            # 执行写入操作...
+    
+    :param config_file: 配置文件路径（可选）
+    :param user_role: 用户角色（reader/writer/admin/backup），默认为reader
     :yield: SQLAlchemy 会话
     """
-    engine = get_engine(config_file)
+    engine = get_engine(config_file, user_role)
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
     
@@ -106,11 +121,19 @@ def get_session(config_file: Optional[str] = None) -> Generator[Session, None, N
 # 测试：验证数据库连接（运行database.py时执行）
 if __name__ == "__main__":
     try:
+        # 测试引擎创建
         engine = get_engine()
         print(f"数据库引擎创建成功：{engine}")
-        session = get_session()
-        print(f"数据库会话创建成功：{session}")
-        session.close()
-        print("数据库会话已关闭")
+        
+        # 测试会话创建和使用（通过上下文管理器）
+        with get_session() as session:
+            print(f"数据库会话创建成功")
+            # 执行一个简单查询来验证连接
+            result = session.execute(text("SELECT VERSION()"))
+            db_version = result.scalar_one_or_none()
+            print(f"成功连接到数据库，版本: {db_version}")
+        
+        print("数据库会话已自动关闭（上下文管理器）")
+        print("数据库连接测试成功！")
     except Exception as e:
         print(f"数据库连接失败：{str(e)}")

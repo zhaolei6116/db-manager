@@ -1,6 +1,4 @@
 # src/ingestion/lims_puller.py
-import yaml
-import logging
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -8,18 +6,13 @@ from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass  # 用内置模块，无需额外安装
 
 # 项目内依赖：替换为新的YAML配置工具类 + 数据库会话
-from src.models.database import get_session  # 仅保留数据库会话获取，
-from src.models.models import InputFileMetadata  
+from src.models.database import get_session  # 仅保留数据库会话获取
 from src.repositories.input_file_repository import InputFileRepository  
 from src.utils.yaml_config import get_yaml_config  # 新YAML配置工具类
 
 # 初始化统一日志（按拉取任务维度记录）
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("logs/lims_puller.log"), logging.StreamHandler()]
-)
-logger = logging.getLogger("LIMS_Puller")
+from src.utils.logging_config import get_lims_puller_logger
+logger = get_lims_puller_logger()
 
 # 外部LIMS下载器导入（兼容原有调用，报错时明确提示）
 try:
@@ -83,15 +76,16 @@ def get_time_range(pull_config: Dict) -> Tuple[str, str]:
 
 
 def get_precise_time_range(pull_config: Dict) -> Tuple[str, str]:
-    """精确时间范围：基于上次拉取记录，避免重复"""
+    """精确时间范围：基于上次拉取记录，避免重复，包含5分钟重叠区间"""
     pull_path = Path(pull_config["path"])
     last_pull_file = pull_path / "last_pull_time.txt"
     end_time = datetime.now()
-    # 读取上次拉取结束时间（无则用当前时间-30分钟）
+    # 读取上次拉取结束时间（无则用当前时间-START_OFFSET）
     if last_pull_file.exists():
         with open(last_pull_file, "r") as f:
             last_end_time = datetime.strptime(f.read().strip(), "%Y-%m-%d %H:%M:%S")
-        start_time = last_end_time
+        # 开始时间比上次结束时间提前5分钟，确保重叠区间
+        start_time = last_end_time - timedelta(minutes=5)
     else:
         start_time = end_time - timedelta(hours=pull_config["START_OFFSET"])
     # 记录本次拉取结束时间
@@ -213,7 +207,7 @@ def run_lims_puller(config_file: Optional[str] = None) -> Dict[str, PullResult]:
     # 2. 准备拉取基础参数
     pull_path = pull_config["path"]
     labs = pull_config["labs"]
-    start_time, end_time = get_time_range(pull_config)
+    start_time, end_time = get_precise_time_range(pull_config)  # 可以改为精确拉取时间 get_precise_time_range
     pull_results = {}  # 存储所有实验室的拉取结果
 
     # 新增：拉取前先执行安全清理（保留24小时内已录入文件）
@@ -240,20 +234,25 @@ def run_lims_puller(config_file: Optional[str] = None) -> Dict[str, PullResult]:
     return pull_results
 
 
-def get_all_json_in_lims_dir(config_file: Optional[str] = None) -> List[str]:
+def get_all_json_in_lims_dir(temp_path:Optional[str] = None ,config_file: Optional[str] = None) -> List[str]:
     """
     对外提供的接口：获取拉取根目录下所有JSON文件（供后续录入脚本调用）
     :param config_file: 配置文件路径
     :return: 所有JSON文件的绝对路径列表（递归扫描，含batchID子目录）
     """
-    # 加载拉取根目录配置
-    yaml_config = get_yaml_config(config_file)
-    pull_path = yaml_config.get("pull_request.path", required=True)
-    if not pull_path:
-        raise ValueError("config.yaml的pull_request.path未配置")
-    
+    if temp_path:
+        pull_path = temp_path
+        pull_root_dir = Path(pull_path)
+    else:
+        # 加载拉取根目录配置
+        yaml_config = get_yaml_config(config_file)
+        pull_path = yaml_config.get("pull_request.path", required=True)
+        if not pull_path:
+            raise ValueError("config.yaml的pull_request.path未配置")
+        
+        # 递归扫描所有JSON文件
+        pull_root_dir = Path(pull_path)
     # 递归扫描所有JSON文件
-    pull_root_dir = Path(pull_path)
     all_json_paths = get_existing_json_paths(pull_root_dir)
     all_json_paths_str = [str(p.absolute()) for p in all_json_paths]
     
@@ -264,93 +263,116 @@ def get_all_json_in_lims_dir(config_file: Optional[str] = None) -> List[str]:
 def clean_lims_data_dir(
     config_file: Optional[str] = None,
     retain_hours: int = 24,  # 已录入文件的保留时间（默认24小时）
-    dry_run: bool = False     # 测试模式：只打印要删除的文件，不实际删除
+    dry_run: bool = False,    # 测试模式：只打印要删除的文件，不实际删除
+    temp_path: Optional[str] = None  # 临时指定清理目录，用于测试
 ) -> Dict[str, int]:
     """
     安全清理LimsData目录：仅删除“已录入数据库”且“超过retain_hours”的JSON文件
     :param config_file: 配置文件路径（默认config/config.yaml）
     :param retain_hours: 已录入文件的保留时间（小时），默认24小时
     :param dry_run: 测试模式（True：不删除，仅日志；False：实际删除）
+    :param temp_path: 临时指定清理目录，用于测试，优先级高于配置文件
     :return: 清理结果字典（total_scanned: 扫描文件数, total_deleted: 实际删除数, skipped: 跳过数）
     """
     logger.info(f"=== 开始清理LimsData目录（保留已录入文件{retain_hours}小时，测试模式：{dry_run}）===")
-    result = {"total_scanned": 0, "total_deleted": 0, "skipped": 0}
+    result = {"total_scanned": 0, "total_deleted": 0, "skipped": 0, "details": {"not_in_db": 0, "recent_file": 0, "error_processing": 0}}  # 添加更详细的统计
+    file_repo = None
 
-    # 1. 加载配置和初始化资源
     try:
-        # 获取LimsData目录路径
-        yaml_config = get_yaml_config(config_file)
-        pull_path = yaml_config.get("pull_request.path", required=True)
-        
-        if not pull_path:
-            raise ValueError("config.yaml的pull_request.path未配置，无法清理")
-        lims_dir = Path(pull_path)
+        # 1. 加载配置和初始化资源
+        if temp_path:
+            lims_dir = Path(temp_path)
+            logger.info(f"使用临时指定的清理目录：{lims_dir.absolute()}")
+        else:
+            # 获取LimsData目录路径
+            yaml_config = get_yaml_config(config_file)
+            pull_path = yaml_config.get("pull_request.path", required=True)
+            
+            if not pull_path:
+                raise ValueError("config.yaml的pull_request.path未配置，无法清理")
+            lims_dir = Path(pull_path)
+            logger.info(f"从配置文件加载清理目录：{lims_dir.absolute()}")
+
         if not lims_dir.exists():
             logger.warning(f"LimsData目录{lims_dir.absolute()}不存在，无需清理")
             return result
 
-        # 初始化数据库会话（查询input_file_metadata）
-        db_session = get_session()
-        file_repo = InputFileRepository(db_session)   # 操作input_file_metadata表
+        # 初始化数据库会话（查询input_file_metadata）使用上下文管理器
+        with get_session() as db_session:
+            file_repo = InputFileRepository(db_session)   # 操作input_file_metadata表
+
+            # 2. 递归扫描所有JSON文件
+            all_json_files = get_existing_json_paths(lims_dir)  # 复用已有的递归扫描函数
+            result["total_scanned"] = len(all_json_files)
+            
+            if len(all_json_files) == 0:
+                logger.info("LimsData目录中无JSON文件，无需清理")
+                return result
+
+            # 3. 计算“清理阈值时间”（当前时间 - retain_hours）
+            delete_threshold = datetime.now() - timedelta(hours=retain_hours)
+            logger.info(f"清理阈值时间：{delete_threshold.strftime('%Y-%m-%d %H:%M:%S')}（早于该时间的已录入文件将被删除）")
+
+            # 4. 逐个文件判断是否需要清理
+            for json_file in all_json_files:
+                file_path = json_file.absolute()
+                file_name = json_file.name  # 文件名（与input_file_metadata的file_name字段一致）
+                
+                try:
+                    # 获取文件创建时间（系统时间）
+                    file_ctime = datetime.fromtimestamp(json_file.stat().st_ctime)
+
+                    # 4.1 检查文件是否已录入数据库（input_file_metadata表）
+                    existing_file = file_repo.get_by_pk(file_name)  # 按主键查询
+                    if not existing_file:
+                        # 未录入的文件：跳过（避免删除待录入数据）
+                        logger.debug(f"文件[{file_path}]未录入input_file_metadata，跳过清理")
+                        result["skipped"] += 1
+                        result["details"]["not_in_db"] += 1
+                        continue
+
+                    # 4.2 检查已录入文件是否超过保留时间
+                    if file_ctime > delete_threshold:
+                        # 未超过保留时间：跳过（防止刚录入就被删除）
+                        logger.debug(
+                            f"文件[{file_path}]已录入，但创建时间（{file_ctime.strftime('%Y-%m-%d %H:%M:%S')}）"
+                            f"晚于清理阈值，跳过清理"
+                        )
+                        result["skipped"] += 1
+                        result["details"]["recent_file"] += 1
+                        continue
+
+                    # 4.3 满足清理条件：执行删除（或测试模式打印）
+                    logger.info(f"文件[{file_path}]满足清理条件（已录入+创建时间超{retain_hours}小时）")
+                    if not dry_run:
+                        os.remove(file_path)  # 实际删除文件
+                        logger.info(f"文件[{file_path}]已删除")
+                        result["total_deleted"] += 1
+                    else:
+                        logger.info(f"【测试模式】文件[{file_path}]将被删除（未实际执行）")
+                        result["total_deleted"] += 1  # 即使在测试模式下也计数，便于验证
+
+                except FileNotFoundError:
+                    logger.warning(f"文件[{file_path}]在处理过程中被其他程序删除")
+                    result["skipped"] += 1
+                    continue
+                except Exception as e:
+                    logger.error(f"处理文件[{file_path}]时异常：{str(e)}", exc_info=True)
+                    result["skipped"] += 1
+                    result["details"]["error_processing"] += 1
+                    continue
+
     except Exception as e:
-        logger.error(f"清理初始化失败：{str(e)}", exc_info=True)
-        return result
+        logger.error(f"清理过程发生严重错误：{str(e)}", exc_info=True)
+    finally:
+        # 5. 清理完成，确保释放资源
+        # 由于使用了上下文管理器，会话会自动关闭，这里无需额外处理
+        pass
 
-    # 2. 递归扫描所有JSON文件
-    all_json_files = get_existing_json_paths(lims_dir)  # 复用已有的递归扫描函数
-    result["total_scanned"] = len(all_json_files)
-    if len(all_json_files) == 0:
-        logger.info("LimsData目录中无JSON文件，无需清理")
-        db_session.close()
-        return result
-
-    # 3. 计算“清理阈值时间”（当前时间 - retain_hours）
-    delete_threshold = datetime.now() - timedelta(hours=retain_hours)
-    logger.info(f"清理阈值时间：{delete_threshold.strftime('%Y-%m-%d %H:%M:%S')}（早于该时间的已录入文件将被删除）")
-
-    # 4. 逐个文件判断是否需要清理
-    for json_file in all_json_files:
-        file_path = json_file.absolute()
-        file_name = json_file.name  # 文件名（与input_file_metadata的file_name字段一致）
-        file_ctime = datetime.fromtimestamp(json_file.stat().st_ctime)  # 文件创建时间（系统时间）
-
-        try:
-            # 4.1 检查文件是否已录入数据库（input_file_metadata表）
-            existing_file = file_repo.get_by_pk(file_name)  # 按主键查询
-            if not existing_file:
-                # 未录入的文件：跳过（避免删除待录入数据）
-                logger.debug(f"文件[{file_path}]未录入input_file_metadata，跳过清理")
-                result["skipped"] += 1
-                continue
-
-            # 4.2 检查已录入文件是否超过保留时间
-            if file_ctime > delete_threshold:
-                # 未超过保留时间：跳过（防止刚录入就被删除）
-                logger.debug(
-                    f"文件[{file_path}]已录入，但创建时间（{file_ctime.strftime('%Y-%m-%d %H:%M:%S')}）"
-                    f"晚于清理阈值，跳过清理"
-                )
-                result["skipped"] += 1
-                continue
-
-            # 4.3 满足清理条件：执行删除（或测试模式打印）
-            logger.info(f"文件[{file_path}]满足清理条件（已录入+创建时间超{retain_hours}小时）")
-            if not dry_run:
-                os.remove(file_path)  # 实际删除文件
-                logger.info(f"文件[{file_path}]已删除")
-                result["total_deleted"] += 1
-            else:
-                logger.info(f"【测试模式】文件[{file_path}]将被删除（未实际执行）")
-
-        except Exception as e:
-            logger.error(f"处理文件[{file_path}]时异常：{str(e)}", exc_info=True)
-            result["skipped"] += 1
-            continue
-
-    # 5. 清理完成，释放资源
-    db_session.close()
     logger.info(f"=== 清理完成 ===")
     logger.info(f"扫描文件数：{result['total_scanned']}，实际删除数：{result['total_deleted']}，跳过数：{result['skipped']}")
+    if result['details']:
+        logger.info(f"跳过详情：未录入数据库{result['details']['not_in_db']}个，创建时间较新{result['details']['recent_file']}个，处理异常{result['details']['error_processing']}个")
     return result
 
 
@@ -407,14 +429,82 @@ def force_clear_lims_data_dir(
 
 # 脚本直接运行入口（用于测试拉取逻辑，30分钟定时任务可调用run_lims_puller）
 if __name__ == "__main__":
+    import argparse
+    
     try:
-        # 测试拉取（使用默认配置）
-        # run_lims_puller(config_file="config/config.yaml")
-        # run_lims_puller()
-        # 测试获取所有JSON接口（后续录入脚本会调用类似逻辑）
-        # all_json = get_all_json_in_lims_dir(config_file="config/config.yaml")
-        all_json = get_all_json_in_lims_dir()
-        print(f"所有JSON文件：{all_json}")
+        # 1. 解析命令行参数
+        parser = argparse.ArgumentParser(description='LIMS数据拉取脚本测试工具')
+        parser.add_argument('--mode', '-m', 
+                          choices=['get_files', 'pull', 'clean', 'all'], 
+                          default='get_files',
+                          help='测试模式：get_files(获取文件列表), pull(拉取数据), clean(清理目录), all(全部测试)')
+        parser.add_argument('--config', '-c', 
+                          type=str, 
+                          default=None,
+                          help='配置文件路径（默认使用config/config.yaml）')
+        parser.add_argument('--temp-dir', 
+                          type=str, 
+                          default=None,
+                          help='临时指定测试目录（仅用于get_files和clean模式的测试）')
+        parser.add_argument('--retain-hours', 
+                          type=int, 
+                          default=24,
+                          help='清理模式下保留已录入文件的小时数（默认24小时）')
+        parser.add_argument('--no-dry-run', 
+                          action='store_true',
+                          help='清理模式下是否实际删除文件（默认使用dry_run=True测试模式）')
+        
+        args = parser.parse_args()
+        test_mode = args.mode
+        config_file = args.config
+        temp_dir = args.temp_dir
+        retain_hours = args.retain_hours
+        dry_run = not args.no_dry_run
+        
+        logger.info(f"开始执行LIMS拉取脚本测试，模式：{test_mode}")
+        
+        # 2. 根据测试模式执行对应功能
+        if test_mode in ["get_files", "all"]:
+            print("\n===== 测试：获取所有JSON文件 =====")
+            if temp_dir:
+                print(f"使用临时目录进行测试：{temp_dir}")
+                all_json = get_all_json_in_lims_dir(temp_path=temp_dir, config_file=config_file)
+            else:
+                all_json = get_all_json_in_lims_dir(config_file=config_file)
+            print(f"扫描到的JSON文件数量：{len(all_json)}")
+            if len(all_json) > 0:
+                print(f"前5个文件路径示例：{all_json[:5]}")
+            else:
+                print("未找到任何JSON文件")
+                
+        # 3. 测试拉取数据功能（实际从LIMS系统拉取数据）
+        if test_mode in ["pull", "all"]:
+            print("\n===== 测试：拉取LIMS数据 =====")
+            pull_results = run_lims_puller(config_file=config_file)
+            print("拉取结果汇总：")
+            for lab, result in pull_results.items():
+                print(f"实验室 {lab}: 成功={result.success}, 新增文件数={result.new_json_count}")
+                if not result.success:
+                    print(f"  错误信息: {result.error_msg}")
+                elif result.new_json_count > 0:
+                    print(f"  新增文件示例: {result.new_json_paths[:3]}")
+        
+        # 4. 测试安全清理功能
+        if test_mode in ["clean", "all"]:
+            print(f"\n===== 测试：安全清理LimsData目录（{'实际删除' if not dry_run else '测试模式'}）=====")
+            if dry_run:
+                print(f"【注意】当前为测试模式，不会实际删除文件")
+            clean_result = clean_lims_data_dir(
+                config_file=config_file, 
+                retain_hours=retain_hours, 
+                dry_run=dry_run,
+                temp_path=temp_dir
+            )
+        
+        logger.info(f"LIMS拉取脚本测试完成，模式：{test_mode}")
+        exit(0)
+        
     except Exception as e:
         logger.critical(f"LIMS拉取脚本运行失败：{str(e)}", exc_info=True)
+        print(f"错误：{str(e)}")
         exit(1)

@@ -12,6 +12,7 @@ from src.schedulers.base_scheduler import BaseScheduler
 from src.schedulers.lims_scheduler import LIMSScheduler
 from src.schedulers.sequencing_scheduler import SequencingScheduler
 from src.schedulers.analysis_scheduler import AnalysisScheduler
+from src.schedulers.input_sample_scheduler import InputSampleScheduler
 
 
 class SchedulerManager:
@@ -27,7 +28,8 @@ class SchedulerManager:
         """注册所有可用的调度器"""
         # 可以根据配置决定是否启用某个调度器
         self.schedulers = [
-            LIMSScheduler(),
+            LIMSScheduler(),  # 负责定时拉取和删除信息单
+            InputSampleScheduler(),  # 负责定时将信息单的信息存到数据库中
             SequencingScheduler(),
             AnalysisScheduler()
             # 未来添加新的调度器只需在这里实例化并添加

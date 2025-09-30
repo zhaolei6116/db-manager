@@ -213,48 +213,73 @@ class BaseRepository(ABC, Generic[ModelType]):
     # ✅ 4. 更新操作（带字段变更日志）
     # ========================================================================
 
+
     def update_field(
         self,
         pk_value: Any,
         field_name: str,
         new_value: Any,
         operator: str = "system"
-    ) -> bool:
+    ) -> tuple[bool, Optional[Dict[str, Any]]]:
         """
-        更新单个字段，并记录变更日志到 FieldCorrections 表
-        :param pk_value: 主键值，用于定位记录
-        :param field_name: 要更新的字段名
-        :param new_value: 新值
-        :param operator: 操作人（用户名或 'system'）
-        :return: 是否成功更新（False 表示未变更或记录不存在）
+        更新单个字段，并返回变更日志字典（不再直接操作FieldCorrections表）
+        
+        Args:
+            pk_value: 主键值，用于定位记录
+            field_name: 要更新的字段名
+            new_value: 新值
+            operator: 操作人（用户名或 'system'）
+        
+        Returns:
+            tuple: (是否成功更新, 变更日志字典或None)
+            - 变更日志字典格式: {
+                "table_name": str,
+                "record_id": str,
+                "field_name": str,
+                "old_value": Any,
+                "new_value": Any,
+                "operator": str,
+                "correction_time": datetime
+            }
         """
         try:
             record = self.get_by_pk(pk_value)
             if not record:
                 logger.warning(f"{self.model.__name__}.{self.get_pk_field()}={pk_value} not found.")
-                return False
+                return False, None
 
-            old_value = getattr(record, field_name, None)
+            # 直接访问字段检查是否存在，不存在则立即返回
+            try:
+                old_value = getattr(record, field_name)
+            except AttributeError:
+                logger.error(f"Field {field_name} does not exist in model {self.model.__name__}")
+                return False, None
+
             if old_value == new_value:
                 logger.info(f"{field_name} already set to {new_value}, no change.")
-                return False
+                return False, None
 
+            # 执行字段更新
             setattr(record, field_name, new_value)
             logger.info(f"Updated {self.model.__name__}.{pk_value}.{field_name}: {old_value} -> {new_value}")
 
-            # 记录字段变更日志
-            self._log_field_correction(
-                table_name=self.model.__tablename__,
-                record_id=str(pk_value),
-                field_name=field_name,
-                old_value=old_value,
-                new_value=new_value,
-                operator=operator
-            )
-            return True
+            # 生成变更日志字典（原_log_field_correction逻辑迁移至此）
+            correction_dict = {
+                "table_name": self.model.__tablename__,
+                "record_id": str(pk_value),
+                "field_name": field_name,
+                "old_value": str(old_value) if old_value is not None else "",
+                "new_value": str(new_value) if new_value is not None else "",
+                "operator": operator,
+                "note": "",
+                "correction_time": datetime.now()
+            }
+
+            return True, correction_dict  # 返回更新状态和变更字典
         except SQLAlchemyError as e:
             logger.error(f"Failed to update field {field_name}: {str(e)}", exc_info=True)
             raise
+
 
     def _log_field_correction(
         self,
@@ -417,4 +442,165 @@ class BaseRepository(ABC, Generic[ModelType]):
                 "field_name": field_name
             }
 
-    
+    def dict_to_orm_with_validation(self, data_dict: Dict[str, Any], required_fields: Optional[List[str]] = None) -> ModelType:
+        """
+        将字典转换为表对应的ORM对象，并进行字段检查
+        
+        Args:
+            data_dict: 包含字段数据的字典
+            required_fields: 必需的字段列表，如果为None，则至少检查主键字段
+        
+        Returns:
+            转换后的ORM实例
+        
+        Raises:
+            ValueError: 如果缺失必要的字段
+        """
+        try:
+            # 1. 确定必要的字段列表
+            if required_fields is None:
+                # 默认至少检查主键字段
+                required_fields = [self.get_pk_field()]
+            else:
+                # 确保主键字段总是被检查
+                pk_field = self.get_pk_field()
+                if pk_field not in required_fields:
+                    required_fields.append(pk_field)
+                    logger.debug(f"自动添加主键字段 '{pk_field}' 到必要字段列表")
+            
+            # 2. 检查必要字段是否存在
+            missing_fields = []
+            for field in required_fields:
+                if field not in data_dict or data_dict[field] is None:
+                    missing_fields.append(field)
+            
+            # 3. 如果缺失必要字段，抛出异常
+            if missing_fields:
+                error_msg = f"Missing required fields for {self.model.__name__}: {', '.join(missing_fields)}"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+            
+            # 4. 创建ORM实例
+            orm_instance = self.model()
+            
+            # 5. 设置字段值（只设置模型中存在的字段）
+            model_fields = [column.name for column in inspect(self.model).columns]
+            for field, value in data_dict.items():
+                if field in model_fields:
+                    setattr(orm_instance, field, value)
+                    logger.debug(f"Set {self.model.__name__}.{field} = {value}")
+                else:
+                    logger.warning(f"Field '{field}' not found in {self.model.__name__} model, skipped")
+            
+            logger.info(f"Successfully converted dict to {self.model.__name__} instance with ID: {getattr(orm_instance, self.get_pk_field())}")
+            return orm_instance
+        except ValueError as e:
+            # 直接传递已记录的ValueError异常
+            raise
+        except Exception as e:
+            logger.error(f"Failed to convert dict to {self.model.__name__} instance: {str(e)}", exc_info=True)
+            raise ValueError(f"Error converting dict to ORM instance: {str(e)}") from e
+
+"""
+BaseRepository父类功能说明（子类继承参考）
+=========================================
+【核心定位】抽象基础仓库类，封装通用CRUD操作，子类需实现_get_model()和get_pk_field()
+
+【功能模块速查】
+1. 存在性检查（去重核心）
+-------------------------
+- exists_by_pk(pk_value): 根据主键判断记录是否存在
+  * 参数: pk_value - 主键值
+  * 返回: bool（True=存在，False=不存在）
+
+- exists_by_fields(**filter_by): 根据字段组合判断是否存在（复合唯一键场景）
+  * 参数: 关键字参数形式的字段条件（如sample_id=123, batch_id=456）
+  * 返回: bool（True=存在）
+
+
+2. 查询操作
+-------------------------
+- get_by_pk(pk_value): 根据主键获取单条记录
+  * 返回: ORM实例或None
+
+- get_all(): 获取所有记录（慎用大数据量场景）
+  * 返回: ORM实例列表
+
+- query_filter(**filter_conditions): 多字段AND条件查询
+  * 参数: 关键字参数形式的查询条件（如status="valid"）
+  * 返回: 匹配的ORM实例列表
+
+- query_filter_or(**filter_conditions): 多字段OR条件查询
+  * 参数: 关键字参数形式的查询条件
+  * 返回: 匹配的ORM实例列表
+
+- query_filter_advanced(*criteria): 高级查询（支持复杂条件组合）
+  * 参数: SQLAlchemy表达式（如Model.status != 'deleted'）
+  * 返回: 匹配的ORM实例列表
+
+
+3. 插入操作
+-------------------------
+- insert_if_not_exists(record, conflict_fields=None): 去重插入
+  * 参数: 
+    - record: 要插入的ORM实例
+    - conflict_fields: 可选，用于判断冲突的字段列表（默认使用主键）
+  * 返回: bool（True=新插入，False=已存在）
+
+- bulk_insert_if_not_exists(records, conflict_fields=None): 批量去重插入
+  * 参数: 
+    - records: ORM实例列表
+    - conflict_fields: 冲突判断字段列表
+  * 返回: int（实际插入数量）
+
+
+4. 更新操作（带审计日志）
+-------------------------
+- update_field(pk_value, field_name, new_value, operator="system"): 单字段更新+日志
+  * 参数:
+    - pk_value: 主键值
+    - field_name: 要更新的字段名
+    - new_value: 新值
+    - operator: 操作人（默认"system"）
+  * 返回: bool（True=更新成功，False=未变更/记录不存在）
+
+
+5. 删除操作
+-------------------------
+- delete_by_pk(pk_value): 根据主键删除记录
+  * 返回: bool（True=删除成功，False=记录不存在）
+
+
+6. 其他通用方法
+-------------------------
+- count(**filter_by): 统计记录数（支持条件过滤）
+  * 返回: int（符合条件的记录总数）
+
+- upsert(record, update_on_duplicate=None): 存在则更新，不存在则插入
+  * 参数:
+    - record: ORM实例
+    - update_on_duplicate: 存在时要更新的字段列表（None=更新所有字段）
+  * 返回: 操作后的ORM实例
+
+
+7. 表结构操作
+-------------------------
+- add_table_field(field_name, field_type, description=""): 动态添加表字段
+  * 参数:
+    - field_name: 字段名
+    - field_type: 字段类型（如'VARCHAR(100)', 'INT'）
+    - description: 字段描述（可选）
+  * 返回: 操作结果字典（含success状态和message）
+
+
+【子类实现要求】
+1. 必须实现:
+   - _get_model(): 返回对应的ORM模型类（如return Project）
+   - get_pk_field(): 返回主键字段名（如return "project_id"）
+
+2. 使用建议:
+   - 优先使用父类提供的通用方法，避免重复开发
+   - 复杂查询使用query_filter_advanced()组合条件
+   - 批量操作使用bulk_insert_if_not_exists提高效率
+   - 字段更新必须通过update_field()确保审计日志记录
+"""

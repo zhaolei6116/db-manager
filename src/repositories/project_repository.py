@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 class ProjectRepository(BaseRepository[Project]):
     """Project表专用Repository"""
     
-    def _get_model(self) -> ModelType:
+    def _get_model(self) -> Project:
         """返回关联的ORM模型"""
         return Project
     
@@ -45,3 +45,5 @@ class ProjectRepository(BaseRepository[Project]):
         except Exception as e:
             self.logger.error(f"更新Project字段失败: {str(e)}", exc_info=True)
             return False
+    
+    

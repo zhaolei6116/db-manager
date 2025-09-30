@@ -2,11 +2,41 @@
 
 # 数据库配置
 database:
-  host: localhost
+  # 公共配置
+  host: 192.168.100.13
   port: 3306
-  user: bio_user
-  password: bio_pass
   db_name: bio_db
+  charset: utf8mb4
+  
+  # 多用户配置（不同权限的用户）
+  users:
+    # 只读用户（用于查询）
+    reader:
+      user: bio_reader
+      password: reader123
+      role: read_only
+      description: "只读用户，用于数据查询"
+    
+    # 读写用户（用于数据处理）
+    writer:
+      user: bio_writer
+      password: writer123
+      role: read_write
+      description: "读写用户，用于数据导入和更新"
+    
+    # 管理员用户（用于维护操作）
+    admin:
+      user: root
+      password: vklz123
+      role: admin
+      description: "管理员用户，用于数据库维护"
+    
+    # 备份用户（用于备份操作）
+    backup:
+      user: bio_backup
+      password: backup123
+      role: backup
+      description: "备份用户，用于数据备份"
 
 # 输入 json 配置
 ingestion:
@@ -23,7 +53,7 @@ pull_request:
     - G
     - T
   START_OFFSET: 24 # 小时
-  path: LimsData/
+  path: /home/zhaolei/project/LimsData
 
 
 # 原始数据字段映射
@@ -41,7 +71,6 @@ fields_mapping:
     sample_type: Sample_type
     sample_type_raw: Sample_type_raw
     resistance_type: Resistance_type
-    project_type: Project
     species_name: Species_name
     genome_size: Genome_size
     data_volume: Data_volume
@@ -54,6 +83,8 @@ fields_mapping:
     laboratory: Laboratory
   sequence:
     sample_id: Detect_no
+    project_id: Client
+    project_type: Project
     batch_id: Batch_id
     board: Board
     board_id: Board_id
@@ -93,6 +124,12 @@ sequence_run:
 project_type:
   16SAMP: "/nas02/project/zhaolei/test_data_manger/16s"
   Bacterial_assembly: "/nas02/project/zhaolei/test_data_manger/bacass"
+
+# 项目类型与模板目录对应关系
+project_type_to_template:
+  "细菌完成图（标准分析）": "bacteriaa_assembly"
+  "细菌完成图（基础分析）": "bacteriaa_assembly"
+  16SAMP: "16SAMP"
 
 # 新字段规则
 new_field_rules:
@@ -166,6 +203,15 @@ logging:
   log_level: INFO             # 日志级别（DEBUG/INFO/WARNING/ERROR）
   max_bytes: 10485760         # 单个日志文件最大大小（10MB）
   backup_count: 5             # 日志文件备份数量
+
+# 通知配置
+notification:
+  # 不同项目类型对应的webhook URL
+  webhooks:
+    16SAMP: "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=project16s_token"  # 16S项目通知URL
+    细菌完成图（基础分析）: "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32"  # 细菌组装项目通知URL
+    细菌完成图（标准分析）: "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32"  # 细菌标准分析项目通知URL
+    # 可以根据需要添加更多项目类型的webhook URL
 
 # 所有调度器的配置
 scheduler:

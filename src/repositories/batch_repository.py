@@ -1,6 +1,11 @@
 from .base_repository import BaseRepository, ModelType
+from typing import Dict, Any
 from src.models.models import Batch
 from sqlalchemy.orm import Session
+from typing import Generic, TypeVar
+
+# 泛型类型定义
+ModelType = TypeVar('ModelType')
 
 
 class BatchRepository(BaseRepository[Batch]):
@@ -13,6 +18,33 @@ class BatchRepository(BaseRepository[Batch]):
     def get_pk_field(self) -> str:
         """返回主键字段名"""
         return "batch_id"
+        
+    def dict_to_orm(self, json_data: Dict[str, Any]) -> Batch:
+        """
+        将JSON数据字典转换为Batch ORM实例
+        
+        Args:
+            json_data: 包含Batch字段的JSON数据字典
+        
+        Returns:
+            Batch: Batch ORM实例
+        
+        Notes:
+            从JSON中提取需要的字段，创建Batch实例
+            如果JSON中缺少某些字段，将使用None
+        """
+        # 映射JSON字段到Batch模型字段
+        # 根据models.py中的字段注释，Batch_id对应batch_id
+        batch_id = json_data.get('Batch_id') or json_data.get('batch_id')
+        
+        # 创建Batch实例
+        batch = Batch(
+            batch_id=batch_id,
+            sequencer_id=json_data.get('Sequencer_id') or json_data.get('sequencer_id'),
+            laboratory=json_data.get('Laboratory') or json_data.get('laboratory')
+        )
+        
+        return batch
     
     def get_batches_by_sequencer(self, sequencer_id: str) -> list[Batch]:
         """

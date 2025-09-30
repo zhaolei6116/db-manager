@@ -12,7 +12,7 @@ from src.utils.yaml_config import get_yaml_config
 logger = logging.getLogger(__name__)
 
 class DataProcessor:
-    """数据处理器：解析JSON文件并生成project/sample/batch/sequence/sequence_run表的字段字典"""
+    """数据处理器：解析JSON文件并生成各表字典，包括合并后的sequence信息"""
 
     def __init__(self, config_file: Optional[str] = None):
         """
@@ -34,7 +34,8 @@ class DataProcessor:
             json_path: JSON文件路径
         
         Returns:
-            字典，键为表名（project/sample/batch/sequence/sequence_run），值为对应表的字段字典；
+            字典，键为表名（project/sample/batch/sequence），值为对应表的字段字典；
+            其中sequence表包含合并后的sequence和sequence_run信息；
             如果解析失败，返回None
         """
         try:
@@ -50,13 +51,12 @@ class DataProcessor:
             with open(json_path, 'r', encoding='utf-8') as f:
                 json_data = json.load(f)
             
-            # 生成各表字段字典
+            # 生成各表字段字典，sequence表包含合并后的信息
             result = {
                 'project': self.get_project_dict(json_data),
                 'sample': self.get_sample_dict(json_data),
                 'batch': self.get_batch_dict(json_data),
-                'sequence': self.get_sequence_dict(json_data),
-                'sequence_run': self.get_sequence_run_dict(json_data)
+                'sequence': self.get_combined_sequence_dict(json_data)
             }
             
             logger.info(f"成功解析JSON文件：{json_path}")
@@ -140,7 +140,7 @@ class DataProcessor:
 
     def get_sequence_dict(self, json_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        生成sequence表的字段字典
+        生成基础sequence表的字段字典
         
         Args:
             json_data: 输入的JSON数据
@@ -150,36 +150,37 @@ class DataProcessor:
         """
         return self.get_table_field_dict('sequence', json_data)
 
-    def get_sequence_run_dict(self, json_data: Dict[str, Any]) -> Dict[str, Any]:
+    def get_combined_sequence_dict(self, json_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        生成sequence_run表的字段字典，基于sequence_run模板和JSON数据
+        生成合并了sequence和sequence_run信息的字段字典
         
         Args:
             json_data: 输入的JSON数据
         
         Returns:
-            sequence_run表的字段字典
+            合并了sequence和sequence_run信息的字段字典
         """
         try:
-            # 获取batch和sequence表的字段字典，用于模板渲染
-            batch_dict = self.get_batch_dict(json_data)
+            # 获取基础sequence表的字段字典
             sequence_dict = self.get_sequence_dict(json_data)
+            
+            # 获取batch表的字段字典，用于生成sequence_run相关信息
+            batch_dict = self.get_batch_dict(json_data)
             
             sample_id = sequence_dict.get('sample_id')
             batch_id = batch_dict.get('batch_id')
             laboratory = batch_dict.get("laboratory")
             sequencer_id = batch_dict.get("sequencer_id")
 
+            # 生成sequence_run相关字段
             lab_sequencer_id = f"{laboratory}{self.sequence_info_config.get('sequence_name')}{sequencer_id}"
             barcode = f"{sequence_dict.get('barcode_prefix')}{sequence_dict.get('barcode_number')}"
             batch_id_path = f"{self.sequence_info_config.get('sequence_data_path')}/{lab_sequencer_id}/{batch_id}"
-            raw_data_path = f"{batch_id_path}/{self.sequence_info_config.get('dir1')}/"
+            raw_data_path = f"{batch_id_path}/"
 
-
-            # 生成sequence_run字段
-            field_dict = {
-                'sample_id': sample_id,
-                'batch_id': batch_id,
+            # 合并sequence和sequence_run字段
+            combined_dict = {
+                **sequence_dict,  # 基础sequence字段
                 'lab_sequencer_id': lab_sequencer_id,
                 'barcode': barcode,
                 'batch_id_path': batch_id_path,
@@ -188,14 +189,11 @@ class DataProcessor:
                 'process_status': 'no'     # 初始状态
             }
 
-            # 移除None值（避免插入空字段）
-            # field_dict = {k: v for k, v in field_dict.items() if v is not None}
-            
-            logger.debug(f"生成sequence_run字段字典：{field_dict}")
-            return field_dict
+            logger.debug(f"生成合并后的sequence字段字典：{combined_dict}")
+            return combined_dict
         
         except Exception as e:
-            logger.error(f"生成sequence_run字段字典失败：{str(e)}")
+            logger.error(f"生成合并后的sequence字段字典失败：{str(e)}")
             raise
 
 # 添加可执行测试部分
@@ -208,12 +206,13 @@ if __name__ == "__main__":
     processor = DataProcessor()
     
     # 测试JSON文件路径（请替换为实际的测试文件路径）
-    test_json_path = Path("/nas02/project/zhaolei/pipeline/data_management/LimsData/25083005/T22508295523_R1.json")
+    test_json_path = Path("/home/zhaolei/project/LimsData/25092402/S22509231629_R1.json")
     
     # 解析JSON文件并打印结果
     test_logger.info(f"开始测试解析JSON文件: {test_json_path}")
     result = processor.parse_json_file(test_json_path)
     print(result)
+    
     if result:
         test_logger.info("JSON文件解析成功，结果如下:")
         for table_name, table_data in result.items():

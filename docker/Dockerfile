@@ -16,7 +16,8 @@ ENV MYSQL_DATABASE=bioinfo_db \
 COPY my.cnf /etc/mysql/conf.d/my.cnf
 
 # 复制初始化 SQL 脚本到 /docker-entrypoint-initdb.d/（自动执行）
-COPY init.sql /docker-entrypoint-initdb.d/init.sql
+COPY init.sql /docker-entrypoint-initdb.d/1_init.sql
+COPY init_users.sql /docker-entrypoint-initdb.d/2_init_users.sql
 
 # 暴露 MySQL 默认端口
 EXPOSE 3306

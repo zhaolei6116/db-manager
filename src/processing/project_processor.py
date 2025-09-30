@@ -1,53 +1,75 @@
-from typing import Optional, Dict, Any
+from typing import Dict, Any
+import logging
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
-from src.processing.base_processor import BaseProcessor
+from src.repositories.project_repository import ProjectRepository
 
+logger = logging.getLogger(__name__)
 
-class ProjectProcessor(BaseProcessor):
+class ProjectProcessor:
     """Project表数据处理器"""
     
-    def __init__(self, db_session: Optional[Session] = None):
-        super().__init__(db_session, "project")
+    def __init__(self, db_session: Session):
+        """
+        初始化ProjectProcessor
+        
+        Args:
+            db_session: 数据库会话对象（必须外部输入）
+        """
+        if db_session is None:
+            raise ValueError("数据库会话对象必须外部输入")
+        self.db_session = db_session
+        self.repo = ProjectRepository(db_session)
     
-    def process(self, json_data: Dict[str, Any], file_name: str) -> bool:
-        """处理Project表数据"""
+    def process(self, data_dict: Dict[str, Any], file_name: str) -> bool:
+        """
+        处理Project表数据
+        
+        Args:
+            data_dict: 包含project数据的字典
+            file_name: 文件名，用于日志记录
+            
+        Returns:
+            bool: 处理是否成功
+        """
         try:
-            # 获取ORM实例
-            orm_instance = self.get_orm_instance(json_data)
-            if not orm_instance:
-                self.logger.error(f"文件[{file_name}]的project表数据生成ORM实例失败")
+            # 获取主键字段名
+            pk_field = self.repo.get_pk_field()
+            
+            # 检查字典中是否包含主键字段
+            if pk_field not in data_dict or data_dict[pk_field] is None:
+                logger.error(f"文件[{file_name}]的project表数据缺少主键字段 '{pk_field}'")
                 return False
             
-            # 获取主键值和已有记录
-            pk_value = self.get_pk_value(orm_instance)
-            existing_record = self.get_existing_record(pk_value)
+            # 获取主键值
+            pk_value = data_dict[pk_field]
             
-            if existing_record is None:
-                # 插入新记录
-                inserted = self.repo.insert_if_not_exists(orm_instance)
-                if inserted:
-                    self.logger.info(f"文件[{file_name}]的project表数据插入成功")
-                return inserted
+            # 判断记录是否已存在
+            if self.repo.exists_by_pk(pk_value):
+                logger.info(f"文件[{file_name}]的project表数据主键 '{pk_value}' 已存在，跳过处理")
+                return True
+            
+            # 字典转换为ORM实例（带字段验证）
+            orm_instance = self.repo.dict_to_orm_with_validation(data_dict)
+            
+            # 插入记录（如果不存在）
+            inserted = self.repo.insert_if_not_exists(orm_instance)
+            
+            if inserted:
+                logger.info(f"文件[{file_name}]的project表数据插入成功，主键: {pk_value}")
+                return True
             else:
-                # 处理更新
-                changed_fields = self.get_changed_fields(existing_record, orm_instance)
-                if changed_fields:
-                    # 执行更新
-                    result = self.repo.update_project_fields(pk_value, changed_fields)
-                    
-                    if result:
-                        self.logger.info(f"文件[{file_name}]的project表数据更新成功，字段: {list(changed_fields.keys())}")
-                        
-                        # 处理更新触发操作
-                        old_data = {field: getattr(existing_record, field) for field in changed_fields}
-                        self.process_field_updates(pk_value, old_data, changed_fields)
-                    return result
-                else:
-                    self.logger.info(f"文件[{file_name}]的project表数据无变化，跳过更新")
-                    return True
-                    
-        except Exception as e:
-            self.logger.error(f"处理[{file_name}]的project表数据失败", exc_info=True)
-            self.db_session.rollback()
+                logger.warning(f"文件[{file_name}]的project表数据插入失败，可能是并发插入导致")
+                return False
+                
+        except ValueError as e:
+            logger.error(f"处理[{file_name}]的project表数据失败：{str(e)}")
             return False
+        except SQLAlchemyError as e:
+            logger.error(f"数据库错误：处理[{file_name}]的project表数据失败", exc_info=True)
+            return False
+        except Exception as e:
+            logger.error(f"处理[{file_name}]的project表数据失败", exc_info=True)
+            return False
+    

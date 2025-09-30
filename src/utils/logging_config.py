@@ -16,7 +16,7 @@ from src.utils.yaml_config import get_yaml_config
 
 def setup_logger(name: Optional[str] = None) -> logging.Logger:
     """
-    配置并返回指定名称的日志器
+    配置并返回指定名称的日志器，确保只有一个处理器
     
     Args:
         name: 日志器名称，用于区分不同模块的日志
@@ -24,42 +24,46 @@ def setup_logger(name: Optional[str] = None) -> logging.Logger:
     Returns:
         配置好的日志器实例
     """
-    # 1. 获取日志配置（从YAML配置中读取）
+    # 获取日志配置
     config = get_yaml_config()
     log_config = config.get_log_config()
     
-    # 2. 确保日志目录存在
+    # 确保日志目录存在
     log_dir = Path(log_config["log_dir"])
     log_dir.mkdir(parents=True, exist_ok=True)
     
-    # 3. 创建日志器
-    logger = logging.getLogger(name or "app")
-    logger.setLevel(log_config["log_level"].upper())  # 转为大写（如"INFO"）
+    # 创建日志器并设置级别
+    logger_name = name or "app"
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(log_config["log_level"].upper())
     
-    # 避免重复添加处理器
-    if logger.handlers:
-        return logger
+    # 清除所有已有处理器
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
     
-    # 4. 定义日志格式（包含时间、模块、级别等信息）
+    # 只添加一个复合处理器，避免重复输出
     formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(lineno)d - %(message)s"
     )
     
-    # 5. 添加文件处理器（支持日志滚动）
-    log_file = log_dir / f"{name or 'app'}.log"
+    # 文件处理器（支持日志滚动）
+    log_file = log_dir / f"{logger_name}.log"
     file_handler = RotatingFileHandler(
         log_file,
-        maxBytes=log_config["max_bytes"],  # 单个文件最大大小
-        backupCount=log_config["backup_count"],  # 备份文件数量
+        maxBytes=log_config["max_bytes"],
+        backupCount=log_config["backup_count"],
         encoding="utf-8"
     )
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
     
-    # 6. 添加控制台处理器
+    # 控制台处理器
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
+    
+    # 防止通过父记录器传播（避免重复日志）
+    logger.propagate = False
     
     return logger
 

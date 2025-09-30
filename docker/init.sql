@@ -1,201 +1,127 @@
--- 创建 project 表：存储项目信息
+-- 1. project: 存储订单信息
 CREATE TABLE project (
-    project_id VARCHAR(50) PRIMARY KEY,   -- Client字段
-    custom_name VARCHAR(100),              -- Custom_name
-    user_name VARCHAR(50),                -- user_name
-    mobile VARCHAR(20),                   -- Mobile
-    remarks VARCHAR(255),                         -- Remarks
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,        -- 记录生成时间，自动生成时间戳
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP   -- 记录更新时间，自动生成时间戳
-);
+    project_id VARCHAR(50) PRIMARY KEY,         -- JSON: Client (e.g., SD250726162017)
+    custom_name VARCHAR(100),                  -- JSON: Custom_name (e.g., 有康生物)
+    user_name VARCHAR(50),                     -- JSON: user_name (e.g., 有康)
+    mobile VARCHAR(20),                        -- JSON: Mobile (e.g., 13385717187)
+    remarks VARCHAR(255),                      -- JSON: Remarks (e.g., "")
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_project_id (project_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 创建 sample 表：存储样本信息
+-- 2. sample: 存储样本基本信息
 CREATE TABLE sample (
-    sample_id VARCHAR(50) PRIMARY KEY,                    -- Detect_no字段，作为样本唯一标识
-    project_id VARCHAR(50),                               -- 外键，关联project表
-    sample_name VARCHAR(100),                             -- Sample_name字段，样本名称
-    sample_type VARCHAR(50),                              -- Sample_type字段，样本类型
-    sample_type_raw VARCHAR(50),                          -- Sample_type_raw字段，原始样本类型
-    resistance_type VARCHAR(50),                          -- Resistance_type字段，抗性类型
-    project_type VARCHAR(100),                                 -- Project字段，项目类型
-    species_name VARCHAR(100),                            -- Species_name字段，物种名称
-    genome_size VARCHAR(50),                              -- Genome_size字段，基因组大小
-    data_volume VARCHAR(50),                              -- Data_volume字段，数据量
-    ref LONGTEXT,                                             -- Ref字段，参考序列
-    plasmid_length INT,                                   -- PLASMID_LENGTH字段，质粒长度
-    length INT,                                           -- 片段 Length字段，长度
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,        -- 记录生成时间，自动生成时间戳
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- 记录更新时间，自动生成时间戳
-    FOREIGN KEY (project_id) REFERENCES project(project_id)
-);
+    sample_id VARCHAR(50) PRIMARY KEY,         -- JSON: Detect_no (e.g., T22507265020)
+    project_id VARCHAR(50),                    -- JSON: Client (关联 project.project_id)
+    sample_name VARCHAR(100),                  -- JSON: Sample_name (e.g., GH-2-16S)
+    sample_type VARCHAR(50),                   -- JSON: Sample_type (e.g., dna)
+    sample_type_raw VARCHAR(50),               -- JSON: Sample_type_raw (e.g., 菌体)
+    resistance_type VARCHAR(50),               -- JSON: Resistance_type (e.g., "")
+    species_name VARCHAR(100),                 -- JSON: Species_name (e.g., "-")
+    genome_size VARCHAR(50),                   -- JSON: Genome_size (e.g., "-")
+    data_volume VARCHAR(50),                   -- JSON: Data_volume (e.g., "-")
+    ref LONGTEXT,                             -- JSON: Ref (e.g., "N")
+    plasmid_length INT,                        -- JSON: PLASMID_LENGTH (e.g., 0)
+    length INT,                                -- JSON: Length (e.g., 0)
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (project_id) REFERENCES project(project_id),
+    INDEX idx_project_sample (project_id, sample_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 创建 batch 表：存储 batch_ID 和对应路径
+-- 3. batch: 存储批次信息（高重复率，几十到几百样本）
 CREATE TABLE batch (
-    batch_id VARCHAR(50)  PRIMARY KEY,                    -- Batch_id字段，批次ID， 作为批次唯一标识
-    sequencer_id VARCHAR(50),                             -- Sequencer_id字段，测序仪ID
-    laboratory VARCHAR(10),                               -- Laboratory字段，实验室
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,        -- 记录生成时间，自动生成时间戳
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- 记录更新时间，自动生成时间戳
-);
+    batch_id VARCHAR(50) PRIMARY KEY,          -- JSON: Batch_id (e.g., 25072909)
+    sequencer_id VARCHAR(50),                  -- JSON: Sequencer_id (e.g., 06)
+    laboratory VARCHAR(10),                    -- JSON: Laboratory (e.g., T)
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_batch_id (batch_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 创建 sequence 表：存储测序信息
+-- 4. sequence: 存储测序信息（含 project_type 和 project_id）
 CREATE TABLE sequence (
-    sequence_id VARCHAR(50) PRIMARY KEY,                       -- 自动生成，如RUN_{uuid}
-    sample_id VARCHAR(50),                                -- 外键，关联sample表
-    batch_id VARCHAR(50),                                 -- 外键，关联batch表
-    board VARCHAR(50),                                    -- Board字段，板号
-    board_id VARCHAR(50),                                 -- Board_id字段，板ID   
-    machine_ver VARCHAR(20),                              -- Machine_ver字段，机器版本
-    barcode_type VARCHAR(50),                             -- Barcode_type字段，条码类型
-    barcode_prefix VARCHAR(50),                           -- Barcode_prefix字段，条码前缀
-    barcode_number VARCHAR(50),                           -- Barcode_number字段，条码编号   
-    reanalysis_times INT,                                 -- Reanalysis_times字段，重分析次数
-    experiment_times INT,                                 -- Experiment_times字段，实验次数
-    allanalysis_times INT,                                -- Allanalysis_times字段，所有分析次数
-    experiment_no VARCHAR(50),                            -- Experiment_no字段，实验号
-    sample_con FLOAT,                                     -- Sample_con字段，样本浓度
-    sample_status VARCHAR(50),                            -- Sample_status字段，样本状态
-    unqualifytime DATETIME,                               -- Unqualifytime字段，不合格时间
-    report_path VARCHAR(255),                             -- Report_path字段，报告路径
-    report_raw_path VARCHAR(255),                         -- Report_raw_path字段，原始报告路径
-    version INT DEFAULT 1,                                -- 字段修正版本号
-    run_type ENUM('initial', 'supplement', 'retest') DEFAULT 'initial', -- 测序类型
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,        -- 记录生成时间，自动生成时间戳
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- 记录更新时间，自动生成时间戳
-    FOREIGN KEY (sample_id) REFERENCES sample(sample_id),
-    FOREIGN KEY (batch_id) REFERENCES batch(batch_id),
-    UNIQUE (sample_id, batch_id)
-);
-
--- 创建 sequence_run 表
-CREATE TABLE sequence_run (
-    sequence_id VARCHAR(50) PRIMARY KEY,                  -- 与sequence表中的 sequence_id 一一对应
-    sample_id VARCHAR(50),                                -- 外键，关联sample表
-    lab_sequencer_id VARCHAR(50),                         -- sequence表 laboratory 与 sequencer_id 信息组合
-    barcode VARCHAR(50),                                  -- sequence表 barcode_prefix 与 barcode_number 信息组合
-    batch_id_path VARCHAR(255),                           -- /{path}/{lab_sequencer_id}/{batch_id}/ path为外接config设置
-    raw_data_path VARCHAR(255),                           -- 原始数据路径，由模板生成
-    data_status ENUM('valid', 'invalid', 'pending') DEFAULT 'pending', -- 数据状态, 数据变成无效之后，需要在 process_data中删除对应的记录
-    process_status ENUM('yes', 'no') DEFAULT 'no',        -- 样本是否进入处理
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,        -- 记录生成时间，自动生成时间戳
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- 记录更新时间，自动生成时间戳
-    FOREIGN KEY (sequence_id) REFERENCES sequence(sequence_id)
-);
-
--- 创建 process_data 表
-CREATE TABLE process_data (
-    process_id INT AUTO_INCREMENT PRIMARY KEY,
-    sequence_id VARCHAR(50),                            -- 外键，关联sequence_run表
-    process_status ENUM('yes', 'no') DEFAULT 'no',
-    UNIQUE (sequence_id),
-    FOREIGN KEY (sequence_id) REFERENCES sequence_run(sequence_id)
-);
-
--- 创建 processed_data_dependency 表（关联表）多对多表
-CREATE TABLE processed_data_dependency (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    process_id INT,                                       -- 外键，关联 process_data 表
-    sequence_id VARCHAR(50),                              -- 外键，关联 sequence_run 表
-    UNIQUE (process_id, sequence_id),
-    FOREIGN KEY (process_id) REFERENCES process_data(process_id),
-    FOREIGN KEY (sequence_id) REFERENCES sequence_run(sequence_id)
-);
-
--- 创建 analysis_inputs 表
-CREATE TABLE analysis_inputs (
-    input_id VARCHAR(50) PRIMARY KEY,                     -- INPUT_{uuid}，熟数据唯一标识
-    process_id INT,                                       -- 外键，关联process_data 表
-    sample_id VARCHAR(50),                                -- 外键，关联sample表
-    project_id VARCHAR(50),                               -- 项目编号，关联project表
-    project_type VARCHAR(50),                             -- 项目类型
-    batch_id VARCHAR(50),                                 -- 批次号
-    raw_data_path VARCHAR(1024),                           -- 熟数据路径 通过 processed_data_run表获取
-    parameters JSON,                                      -- 生成参数。根据不同的项目类型获取相关的字段信息，生成json
-    analysis_status ENUM('yes', 'no') DEFAULT 'no',       -- 是否分析，没有分析的，会再启动分析，默认是no 未分析，支持手动修改
-    retry_count INT DEFAULT 0,                             -- 重试次数，默认0
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,        -- 记录生成时间，自动生成时间戳
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- 记录更新时间，自动生成时间戳
-    FOREIGN KEY (process_id) REFERENCES process_data(process_id),
+    sequence_id VARCHAR(50) PRIMARY KEY,       -- 自动生成 (e.g., RUN_{uuid})
+    sample_id VARCHAR(50),                     -- JSON: Detect_no (关联 sample.sample_id)
+    project_id VARCHAR(50),                    -- JSON: Client (关联 project.project_id)
+    batch_id VARCHAR(50),                      -- JSON: Batch_id (关联 batch.batch_id)
+    project_type VARCHAR(50),                  -- JSON: Project (e.g., 细菌鉴定(16S))
+    board VARCHAR(50),                         -- JSON: Board (e.g., T250729004)
+    board_id VARCHAR(50),                      -- JSON: Board_id (e.g., H2)
+    machine_ver VARCHAR(20),                   -- JSON: Machine_ver (e.g., V3)
+    barcode_type VARCHAR(50),                  -- JSON: Barcode_type (e.g., CW-Bar16bp-2208-1)
+    barcode_prefix VARCHAR(50),                -- JSON: Barcode_prefix (e.g., barcode)
+    barcode_number VARCHAR(50),                -- JSON: Barcode_number (e.g., 0688)
+    barcode VARCHAR(50),                       -- 组合: Barcode_prefix + Barcode_number (e.g., barcode0688)
+    reanalysis_times INT,                      -- JSON: Reanalysis_times (e.g., 0)
+    experiment_times INT,                      -- JSON: Experiment_times (e.g., 1)
+    allanalysis_times INT,                     -- JSON: Allanalysis_times (e.g., 0)
+    experiment_no VARCHAR(50),                 -- JSON: Experiment_no (e.g., "")
+    sample_con FLOAT,                          -- JSON: Sample_con (e.g., 378)
+    sample_status VARCHAR(50),                 -- JSON: Sample_status (e.g., 合格)
+    unqualifytime DATETIME,                    -- JSON: Unqualifytime (e.g., 1970-01-01 08:00:00)
+    report_path VARCHAR(255),                  -- JSON: Report_path (e.g., /kfservice/t/primecx/25072909/T22507265020.zip)
+    report_raw_path VARCHAR(255),              -- JSON: Report_raw_path (e.g., /kfservice/t/primecx/25072909/T22507265020_rawdata.zip)
+    lab_sequencer_id VARCHAR(50),             -- 组合: Laboratory + Sequencer_id (e.g., T06)
+    batch_id_path VARCHAR(255),                -- 模板生成: /{path}/{lab_sequencer_id}/{batch_id}
+    raw_data_path VARCHAR(255),                -- 模板生成: /{batch_id_path}/{barcode}
+    data_status ENUM('valid', 'invalid', 'pending') DEFAULT 'pending', -- 逻辑: Sample_status="合格" → 'valid'
+    process_status ENUM('yes', 'no') DEFAULT 'no', -- 默认 'no'，处理后更新
+    parameters JSON,                           -- 基于 config.yaml 和 project_type (e.g., {"genome_size": "-"})
+    analysis_status ENUM('yes', 'no') DEFAULT 'no', -- 默认 'no'，分析后更新
+    version INT DEFAULT 1,                     -- 默认 1，补测时 MAX(version)+1
+    run_type ENUM('initial', 'supplement', 'retest') DEFAULT 'initial', -- 检查 UNIQUE(sample_id, batch_id, project_type, barcode)
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (sample_id) REFERENCES sample(sample_id),
     FOREIGN KEY (project_id) REFERENCES project(project_id),
     FOREIGN KEY (batch_id) REFERENCES batch(batch_id),
-    INDEX(analysis_status),
-    INDEX(project_id),
-    INDEX(sample_id),
-    INDEX(batch_id)
-);
+    UNIQUE KEY uix_sequence (sample_id, batch_id, project_type, barcode),
+    INDEX idx_sequence_filter (project_id, project_type, data_status, analysis_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 创建 analysis_tasks 表 存储分析任务信息
+-- 5. analysis_tasks: 存储分析任务（按 project_id + project_type 分组）
 CREATE TABLE analysis_tasks (
-    task_id VARCHAR(50) PRIMARY KEY,                      -- TASK_{uuid}，分析任务唯一标识
-    sample_id VARCHAR(50),                                -- 外键，关联sample表
-    project_id VARCHAR(50),                               -- 项目编号，关联project表
-    input_id VARCHAR(50),                                 -- 外键，关联analysis_inputs表
-    project_type VARCHAR(50),                             -- 项目类型
-    analysis_path VARCHAR(255),                           -- 分析路径
-    analysis_status ENUM('pending', 'running', 'completed', 'failed') DEFAULT 'pending', -- 分析状态
-    start_time DATETIME,                                  -- 开始时间
-    end_time DATETIME,                                    -- 结束时间
-    delivery_time DATETIME,                               -- 交付时间
-    remark TEXT,                                          -- 分析状态的备注，如失败原因，等
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,        -- 记录生成时间，自动生成时间戳
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, -- 记录更新时间，自动生成时间戳
-    FOREIGN KEY (sample_id) REFERENCES sample(sample_id),
-    FOREIGN KEY (input_id) REFERENCES analysis_inputs(input_id),
+    task_id VARCHAR(50) PRIMARY KEY,           -- 自动生成: CONCAT(project_id, '_', project_type, '_', retry_count)
+    project_id VARCHAR(50),                    -- JSON: Client (关联 project.project_id)
+    project_type VARCHAR(50),                  -- JSON: Project (e.g., 细菌鉴定(16S))
+    sample_ids JSON,                           -- GROUP_CONCAT(sequence.sample_id)
+    analysis_path VARCHAR(255),                -- 模板生成: /path/to/{project_id}/{project_type}
+    analysis_status ENUM('pending', 'running', 'completed', 'failed') DEFAULT 'pending',
+    retry_count INT DEFAULT 0,                 -- 默认 0，重分析时 ++
+    parameters JSON,                           -- 合并 sequence.parameters
+    start_time DATETIME,
+    end_time DATETIME,
+    delivery_time DATETIME,
+    remark TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (project_id) REFERENCES project(project_id),
-    INDEX(analysis_status)
-    
-);
+    INDEX idx_task_filter (project_id, project_type, analysis_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 创建 input_file_metadata 表（辅助表）
+-- 6. input_file_metadata: 存储 JSON 文件日志
 CREATE TABLE input_file_metadata (
-    file_name VARCHAR(255) PRIMARY KEY,                   -- JSON文件名，如T22507265020.json
-    process_status ENUM('pending', 'success', 'failed') DEFAULT 'pending', -- 处理状态
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP         -- 记录生成时间，自动生成时间戳
-);
+    file_name VARCHAR(255) PRIMARY KEY,        -- JSON 文件名 (e.g., T22507265020.json)
+    process_status ENUM('pending', 'success', 'failed') DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 创建 field_corrections 表 存储字段修正记录
+-- 7. field_corrections: 存储变更日志
 CREATE TABLE field_corrections (
-    correction_id VARCHAR(50) PRIMARY KEY,                -- CORR_{uuid}，修正记录唯一标识
-    table_name VARCHAR(50),                               -- 修正的表名，如 project、sample、sequencing_runs
-    record_id VARCHAR(50),                                -- 修正记录的ID，如 project_id、sample_id、run_id
-    field_name VARCHAR(50),                               -- 修正字段名，如 custom_name、sample_con
-    old_value TEXT,                                       -- 旧值
-    new_value TEXT,                                       -- 新值
-    operator VARCHAR(50),                                 -- 操作人
-    notes TEXT,                                           -- 备注
-    correction_time DATETIME DEFAULT CURRENT_TIMESTAMP    -- 修正时间
-);
-
--- 创建 batch_process_record 表 批次号对应的路径记录
-CREATE TABLE batch_process_record (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    batch_id VARCHAR(50),
-    batch_path VARCHAR(255) DEFAULT '-',
-    operation_type ENUM('create', 'move', 'backup', 'delete', 'restore', 'archive') DEFAULT 'create',
-    notes TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (batch_id) REFERENCES batch(batch_id),
-    INDEX idx_batch_id (batch_id),
-    INDEX idx_batch_op_type (operation_type),
-    INDEX idx_batch_created_at (created_at),
-    INDEX idx_batch_op_time (batch_id, operation_type, created_at)
-);
-
--- 创建 sample_analysis_path_record 表
-CREATE TABLE sample_analysis_path_record (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    sample_id VARCHAR(50),
-    analysis_path VARCHAR(255) DEFAULT '-',
-    operation_type ENUM('create', 'reanalysis', 'move', 'backup', 'delete', 'restore', 'archive') DEFAULT 'create',
-    notes TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (sample_id) REFERENCES sample(sample_id),
-    INDEX idx_sample_id (sample_id),
-    INDEX idx_sample_op_type (operation_type),
-    INDEX idx_sample_created_at (created_at),
-    INDEX idx_sample_op_time (sample_id, operation_type, created_at)
-);
-
-ALTER TABLE input_file_metadata 
-ADD COLUMN process_status ENUM('pending', 'success', 'failed') NOT NULL DEFAULT 'pending';
+    correction_id VARCHAR(50) PRIMARY KEY,     -- 自动生成 (e.g., UUID)
+    table_name VARCHAR(50),                    -- 变更表名 (e.g., sequence)
+    record_id VARCHAR(50),                     -- 变更记录ID (e.g., SEQ001)
+    field_name VARCHAR(50),                    -- 变更字段 (e.g., data_status)
+    old_value TEXT,                            -- 旧值 (e.g., valid)
+    new_value TEXT,                            -- 新值 (e.g., invalid)
+    operator VARCHAR(50),                      -- 操作者
+    operation_type ENUM('update', 'create', 'reanalysis', 'move', 'backup', 'delete', 'restore', 'archive'),
+    notes TEXT,                                -- 备注
+    correction_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_corrections (table_name, record_id),
+    INDEX idx_operator (operator),
+    INDEX idx_correction_time (correction_time),
+    INDEX idx_field_change (table_name, field_name, record_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
