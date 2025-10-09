@@ -122,8 +122,9 @@ sequence_run:
 
 # 项目类型分析路径
 project_type:
-  16SAMP: "/nas02/project/zhaolei/test_data_manger/16s"
-  Bacterial_assembly: "/nas02/project/zhaolei/test_data_manger/bacass"
+  analysis: "/home/zhaolei/project_analysis"
+  16SAMP: "/home/zhaolei/project_analysis/16SAMP"
+  bacteriaa_assembly: "/home/zhaolei/project_analysis/bacteriaa_assembly"
 
 # 项目类型与模板目录对应关系
 project_type_to_template:

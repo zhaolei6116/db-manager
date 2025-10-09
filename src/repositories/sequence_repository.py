@@ -41,5 +41,30 @@ class SequenceRepository(BaseRepository[Sequence]):
         except SQLAlchemyError as e:
             logger.error(f"更新Sequencing字段失败: {str(e)}", exc_info=True)
             raise
+    
+    def get_valid_unprocessed_sequences(self):
+        """获取数据有效且未处理的序列"""
+        return self.db.query(self._get_model()).filter(
+            self._get_model().data_status == 'valid',
+            self._get_model().process_status == 'no'
+        ).all()
+    
+    def get_by_project_id_and_type(self, project_id: str, project_type: str):
+        """根据项目ID和类型获取有效的序列数据
+        
+        仅返回data_status为valid的序列记录
+        
+        Args:
+            project_id: 项目ID
+            project_type: 项目类型
+            
+        Returns:
+            List[Sequence]: 符合条件的序列记录列表
+        """
+        return self.db.query(self._get_model()).filter(
+            self._get_model().project_id == project_id,
+            self._get_model().project_type == project_type,
+            self._get_model().data_status == 'valid'
+        ).all()
 
     
