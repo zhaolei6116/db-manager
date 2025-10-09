@@ -1,3 +1,4 @@
+# src/repositories/analysis_task_repository.py
 from .base_repository import BaseRepository, ModelType
 from src.models.models import AnalysisTask
 
@@ -12,3 +13,16 @@ class AnalysisTaskRepository(BaseRepository[AnalysisTask]):
     def get_pk_field(self) -> str:
         """返回主键字段名"""
         return "task_id"
+    
+    def get_by_project_and_type(self, project_id: str, project_type: str):
+        """根据项目ID和类型获取任务"""
+        return self.db.query(self._get_model()).filter(
+            self._get_model().project_id == project_id,
+            self._get_model().project_type == project_type
+        ).all()
+    
+    def get_pending_tasks(self):
+        """获取所有待处理的任务"""
+        return self.db.query(self._get_model()).filter(
+            self._get_model().analysis_status == 'pending'
+        ).all()
