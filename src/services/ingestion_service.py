@@ -10,10 +10,12 @@ from datetime import datetime
 from src.models.database import get_session
 from src.utils.yaml_config import get_yaml_config
 from src.processing.file_management import FileManager
-from src.processing.json_data_processor import DataProcessor
+from src.processing.json_data_processor import JSONDataProcessor
 from src.processing.lims_data_processor import LIMSDataProcessor
 
-logger = logging.getLogger(__name__)
+# 在模块级别配置日志
+from src.utils.logging_config import setup_logger
+logger = setup_logger("ingestion_service")
 
 
 class IngestionService:
@@ -155,11 +157,9 @@ def run_ingestion_process() -> Dict[str, Any]:
 
 
 if __name__ == "__main__":
-    # 配置日志
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    # 使用项目统一的日志配置，确保同时输出到文件和控制台
+    from src.utils.logging_config import setup_logger
+    logger = setup_logger("ingestion_service")
     
     # 测试数据录入流程
     result = run_ingestion_process()
