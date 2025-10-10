@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from src.models.database import get_session
 from src.query.sequence_analysis_query import SequenceAnalysisQueryGenerator, AnalysisTaskProcessor
 from src.services.project_type_manager import ProjectTypeManager
+from src.repositories.sequence_repository import SequenceRepository
 
 # 在模块级别配置日志
 from src.utils.logging_config import setup_logger
@@ -66,12 +67,42 @@ class AnalysisService:
             file_generation_result = self._generate_analysis_files(dict2)
             stats.update(file_generation_result)
             
+            # 步骤4: 更新已处理序列的process_status
+            self.update_sequence_process_status(dict1)
+            
         except Exception as e:
             logger.error(f"处理分析任务时发生错误: {str(e)}", exc_info=True)
             stats["failed_task_processing"] += 1
         
         logger.info(f"分析任务处理完成: {stats}")
         return stats
+    
+    def update_sequence_process_status(self, dict1: Dict) -> None:
+        """
+        遍历dict1，更新涉及的序列的process_status为yes
+        
+        Args:
+            dict1: 包含序列数据的字典，其中键为sequence_id
+        """
+        logger.info("开始更新序列的处理状态")
+        
+        try:
+            # 从dict1中提取所有的sequence_id
+            sequence_ids = list(dict1.keys())
+            logger.info(f"需要更新的序列数量: {len(sequence_ids)}")
+            
+            if sequence_ids:
+                with get_session() as db_session:
+                    sequence_repo = SequenceRepository(db_session)
+                    sequence_repo.update_sequence_process_status(sequence_ids, status='yes')
+                
+                logger.info(f"成功将 {len(sequence_ids)} 个序列的处理状态更新为'yes'")
+            else:
+                logger.warning("没有需要更新处理状态的序列")
+                
+        except Exception as e:
+            logger.error(f"更新序列处理状态时发生错误: {str(e)}", exc_info=True)
+            raise
 
     def _get_sequence_data(self) -> Tuple[Dict, Dict]:
         """
