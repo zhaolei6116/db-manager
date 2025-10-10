@@ -21,9 +21,22 @@ class AnalysisScheduler(BaseScheduler):
         
     def _register_jobs(self):
         """注册分析任务处理调度任务"""
+        interval_minutes = self.scheduler_config['interval_minutes']
+        
+        # 根据间隔时间选择合适的CronTrigger配置
+        if interval_minutes >= 60:
+            # 对于小时级别的间隔，使用小时字段
+            hours = interval_minutes // 60
+            self.logger.info(f"配置为每{hours}小时执行一次分析任务")
+            trigger = CronTrigger(hour=f"*/{hours}", minute=0)
+        else:
+            # 对于分钟级别的间隔，使用分钟字段
+            self.logger.info(f"配置为每{interval_minutes}分钟执行一次分析任务")
+            trigger = CronTrigger(minute=f"*/{interval_minutes}")
+        
         self.add_job(
             func=self.run_analysis_job,
-            trigger=CronTrigger(minute=f"*/{self.scheduler_config['interval_minutes']}"),
+            trigger=trigger,
             name="analysis_task_processing",
             misfire_grace_time=120  # 允许2分钟的执行延迟
         )
