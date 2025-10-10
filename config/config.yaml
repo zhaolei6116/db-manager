@@ -226,4 +226,4 @@ scheduler:
   
   # 分析信息录入调度器配置
   analysis:
-    interval_minutes: 60  # 每小时执行一次
+    interval_minutes: 5  # 每5分钟执行一次
