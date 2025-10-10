@@ -10,7 +10,7 @@ from typing import List
 from src.utils.logging_config import setup_logger
 from src.schedulers.base_scheduler import BaseScheduler
 from src.schedulers.lims_scheduler import LIMSScheduler
-from src.schedulers.sequencing_scheduler import SequencingScheduler
+from src.schedulers.sequenceing_scheduler import SequencingScheduler
 from src.schedulers.analysis_scheduler import AnalysisScheduler
 from src.schedulers.input_sample_scheduler import InputSampleScheduler
 
