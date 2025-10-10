@@ -189,12 +189,44 @@ class AnalysisService:
         return result
 
 
+def run_analysis_process() -> Dict[str, Any]:
+    """
+    分析任务处理流程入口函数，供调度器调用
+    
+    Returns:
+        Dict[str, Any]: 分析处理结果统计信息和处理时间
+    """
+    logger.info("开始执行分析任务处理流程")
+    try:
+        from datetime import datetime
+        service = AnalysisService()
+        result_stats = service.process_analysis_tasks()
+        
+        # 添加处理时间
+        result = {
+            **result_stats,
+            "process_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        
+        return result
+    except Exception as e:
+        logger.error(f"分析任务处理流程执行失败: {str(e)}", exc_info=True)
+        return {
+            "error": str(e),
+            "total_project_groups": 0,
+            "success_task_processing": 0,
+            "failed_task_processing": 0,
+            "success_file_generation": 0,
+            "failed_file_generation": 0,
+            "process_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+
+
 if __name__ == "__main__":
     """主函数，用于独立运行分析服务"""
     try:
-        analysis_service = AnalysisService()
-        results = analysis_service.process_analysis_tasks()
-        print(f"分析服务执行结果: {results}")
+        result = run_analysis_process()
+        print(f"分析服务执行结果: {result}")
     except Exception as e:
         logger.error(f"分析服务运行失败: {str(e)}", exc_info=True)
         raise
