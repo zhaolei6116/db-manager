@@ -44,7 +44,7 @@ class SequenceRepository(BaseRepository[Sequence]):
     
     def get_valid_unprocessed_sequences(self):
         """获取数据有效且未处理的序列"""
-        return self.db.query(self._get_model()).filter(
+        return self.db_session.query(self._get_model()).filter(
             self._get_model().data_status == 'valid',
             self._get_model().process_status == 'no'
         ).all()
@@ -61,10 +61,36 @@ class SequenceRepository(BaseRepository[Sequence]):
         Returns:
             List[Sequence]: 符合条件的序列记录列表
         """
-        return self.db.query(self._get_model()).filter(
+        return self.db_session.query(self._get_model()).filter(
             self._get_model().project_id == project_id,
             self._get_model().project_type == project_type,
             self._get_model().data_status == 'valid'
         ).all()
+    
+    def update_sequence_process_status(self, sequence_ids: List[str], status: str = 'yes') -> bool:
+        """批量更新序列的处理状态
+        
+        Args:
+            sequence_ids (List[str]): 序列ID列表
+            status (str): 处理状态，默认为'yes'
+        
+        Returns:
+            bool: 更新是否成功
+        """
+        if not sequence_ids:
+            return True
+            
+        try:
+            # 更新序列的处理状态
+            self.db_session.query(self._get_model()).filter(
+                self._get_model().sequence_id.in_(sequence_ids)
+            ).update({
+                'process_status': status
+            }, synchronize_session=False)
+            
+            return True
+        except SQLAlchemyError as e:
+            logger.error(f"批量更新序列处理状态失败: {str(e)}", exc_info=True)
+            raise
 
     

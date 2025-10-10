@@ -172,6 +172,24 @@ class AnalysisTaskProcessor:
             'failure': failure_count
         }
         
+    def get_by_project_and_type(self, project_id: str, project_type: str):
+        """
+        根据项目ID和类型获取分析任务
+        
+        Args:
+            project_id: 项目ID
+            project_type: 项目类型
+            
+        Returns:
+            查询结果（任务列表）
+        """
+        try:
+            logger.info(f"根据project_id={project_id}和project_type={project_type}查询分析任务")
+            return self.analysis_task_repo.get_by_project_and_type(project_id, project_type)
+        except Exception as e:
+            logger.error(f"查询分析任务失败：{str(e)}", exc_info=True)
+            return []
+    
     def create_task_with_validation(self, data_dict: Dict[str, Any], source: str = "system") -> bool:
         """
         创建分析任务记录，包含数据补全、验证和去重插入
