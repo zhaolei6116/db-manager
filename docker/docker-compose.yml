@@ -17,6 +17,9 @@ services:
       - "3306:3306"
     volumes:
       - /nas02/project/zhaolei/database/mysql_data:/var/lib/mysql
+      # 挂载宿主机时间文件以保持时间同步
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pvklz123"]
       interval: 30s
