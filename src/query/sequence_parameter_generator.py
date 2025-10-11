@@ -156,9 +156,9 @@ class SequenceParameterGenerator:
             # 3. 加载对应的pipeline模板配置
             pipeline_config = self._load_pipeline_config(project_type)
             if not pipeline_config:
-                logger.warning(f"未找到project_type={project_type}的pipeline模板配置，使用默认配置")
-                # 可以提供一个默认的配置结构
-                pipeline_config = {}
+                logger.error(f"未找到project_type={project_type}的pipeline模板配置，当前还不支持这个项目类型")
+                # 不使用默认配置，直接返回失败
+                return False
             
             # 4. 生成parameter JSON
             parameter_json = self._generate_parameter_json(sequence, pipeline_config)
