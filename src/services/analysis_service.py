@@ -21,6 +21,8 @@ from src.repositories.sequence_repository import SequenceRepository
 
 # 在模块级别配置日志
 from src.utils.logging_config import setup_logger
+# 导入通知管理器
+from src.utils.notification_manager import notification_manager
 logger = setup_logger("analysis_service")
 
 
@@ -49,6 +51,9 @@ class AnalysisService:
             "failed_file_generation": 0
         }
         
+        # 存储每个项目组的处理状态
+        project_group_status = {}
+        
         try:
             # 步骤1: 获取待处理的序列数据字典
             dict1, dict2 = self._get_sequence_data()
@@ -60,15 +65,31 @@ class AnalysisService:
                 return stats
             
             # 步骤2: 处理每个项目组的数据并保存到数据库
-            task_processing_result = self._process_project_groups(dict2)
+            task_processing_result, task_status = self._process_project_groups(dict2)
             stats.update(task_processing_result)
+            project_group_status.update(task_status)
             
             # 步骤3: 生成分析目录和文件
-            file_generation_result = self._generate_analysis_files(dict2)
+            file_generation_result, file_status = self._generate_analysis_files(dict2)
             stats.update(file_generation_result)
             
+            # 更新项目组状态信息
+            for project_key in project_group_status:
+                if project_key in file_status:
+                    project_group_status[project_key].update({
+                        'file_generation': file_status[project_key]
+                    })
+            
             # 步骤4: 更新已处理序列的process_status
-            self.update_sequence_process_status(dict1)
+            update_success = True
+            try:
+                self.update_sequence_process_status(dict1)
+            except Exception as e:
+                update_success = False
+                logger.error(f"更新序列处理状态失败: {str(e)}")
+            
+            # 步骤5: 发送通知提醒
+            self._send_analysis_notifications(dict2, project_group_status, update_success)
             
         except Exception as e:
             logger.error(f"处理分析任务时发生错误: {str(e)}", exc_info=True)
@@ -82,13 +103,16 @@ class AnalysisService:
         遍历dict1，更新涉及的序列的process_status为yes
         
         Args:
-            dict1: 包含序列数据的字典，其中键为sequence_id
+            dict1: 包含序列数据的字典，键为(project_id, project_type)元组，值为sequence_id列表
         """
         logger.info("开始更新序列的处理状态")
         
         try:
-            # 从dict1中提取所有的sequence_id
-            sequence_ids = list(dict1.keys())
+            # 从dict1中提取所有的sequence_id（dict1的值是序列ID列表）
+            sequence_ids = []
+            for seq_id_list in dict1.values():
+                sequence_ids.extend(seq_id_list)
+                
             logger.info(f"需要更新的序列数量: {len(sequence_ids)}")
             
             if sequence_ids:
@@ -120,7 +144,7 @@ class AnalysisService:
         logger.info("成功获取待处理的序列数据")
         return dict1, dict2
 
-    def _process_project_groups(self, dict2: Dict) -> Dict[str, int]:
+    def _process_project_groups(self, dict2: Dict) -> Tuple[Dict[str, int], Dict]:
         """
         遍历dict2，处理每个项目组的数据并存入数据库
         
@@ -128,16 +152,18 @@ class AnalysisService:
             dict2: 包含项目组数据的字典
             
         Returns:
-            Dict[str, int]: 任务处理结果统计
+            Tuple[Dict[str, int], Dict]: 任务处理结果统计和每个项目组的状态信息
         """
         logger.info("开始处理每个项目组的数据并存入数据库")
         
         success_count = 0
         failed_count = 0
+        project_status = {}
         
         for project_key, sequences in dict2.items():
             # project_key 是元组类型 (project_id, project_type)
             project_id, project_type = project_key
+            project_status[project_key] = {'success': False, 'error': None}
             
             try:
                 # 获取分析路径
@@ -155,13 +181,16 @@ class AnalysisService:
                     
                 if result:
                     success_count += 1
+                    project_status[project_key] = {'success': True, 'error': None}
                     logger.info(f"成功处理项目组: {project_key}")
                 else:
                     failed_count += 1
+                    project_status[project_key] = {'success': False, 'error': '处理结果为失败'}
                     logger.warning(f"处理项目组 {project_key} 结果为失败")
                 
             except Exception as e:
                 failed_count += 1
+                project_status[project_key] = {'success': False, 'error': str(e)}
                 logger.error(f"处理项目组 {project_key} 时发生错误: {str(e)}", exc_info=True)
         
         result = {
@@ -170,9 +199,9 @@ class AnalysisService:
         }
         
         logger.info(f"项目组数据处理完成: 成功 {success_count} 个，失败 {failed_count} 个")
-        return result
+        return result, project_status
 
-    def _generate_analysis_files(self, dict2: Dict) -> Dict[str, int]:
+    def _generate_analysis_files(self, dict2: Dict) -> Tuple[Dict[str, int], Dict]:
         """
         遍历dict2，为每个项目组生成分析目录和相关文件
         
@@ -180,16 +209,18 @@ class AnalysisService:
             dict2: 包含项目组数据的字典
             
         Returns:
-            Dict[str, int]: 文件生成结果统计
+            Tuple[Dict[str, int], Dict]: 文件生成结果统计和每个项目组的状态信息
         """
         logger.info("开始为每个项目组生成分析目录和相关文件")
         
         success_count = 0
         failed_count = 0
+        file_status = {}
         
         for project_key, sequences in dict2.items():
             # project_key 是元组类型 (project_id, project_type)
             project_id, project_type = project_key
+            file_status[project_key] = {'success': False, 'error': None}
             
             try:
                 # 创建项目类型管理器实例
@@ -203,12 +234,14 @@ class AnalysisService:
                     # 生成run.sh文件
                     project_manager.generate_run_sh(analysis_path, project_id)
                     success_count += 1
+                    file_status[project_key] = {'success': True, 'error': None}
                     logger.info(f"成功为项目组 {project_key} 生成分析文件")
                 else:
                     raise Exception("生成input.tsv文件失败")
                     
             except Exception as e:
                 failed_count += 1
+                file_status[project_key] = {'success': False, 'error': str(e)}
                 logger.error(f"为项目组 {project_key} 生成分析文件时发生错误: {str(e)}", exc_info=True)
         
         result = {
@@ -217,7 +250,73 @@ class AnalysisService:
         }
         
         logger.info(f"分析文件生成完成: 成功 {success_count} 个，失败 {failed_count} 个")
-        return result
+        return result, file_status
+
+
+    def _send_analysis_notifications(self, dict2: Dict, project_group_status: Dict, update_success: bool) -> None:
+        """
+        发送分析结果通知提醒
+        
+        Args:
+            dict2: 包含项目组数据的字典
+            project_group_status: 每个项目组的处理状态信息
+            update_success: 序列处理状态更新是否成功
+        """
+        logger.info("开始发送分析结果通知提醒")
+        
+        for project_key in dict2:
+            project_id, project_type = project_key
+            status_info = project_group_status.get(project_key, {})
+            
+            # 检查步骤2、3、4是否都处理通过
+            task_success = status_info.get('success', False)
+            file_success = status_info.get('file_generation', {}).get('success', False)
+            
+            if task_success and file_success and update_success:
+                # 所有步骤都成功，发送成功提醒
+                message = f"项目 {project_id} 的分析文件已准备好，可以开始分析任务"
+                module = "Analysis Service"
+                status = "success"
+                
+                try:
+                    notification_manager.send_yunzhijia_alert(
+                        message=message,
+                        module=module,
+                        status=status,
+                        project_type=project_type
+                    )
+                    logger.info(f"已发送项目 {project_id} 的分析成功提醒")
+                except Exception as e:
+                    logger.error(f"发送项目 {project_id} 的分析成功提醒失败: {str(e)}")
+            else:
+                # 有步骤失败，发送失败提醒
+                error_reasons = []
+                
+                if not task_success:
+                    task_error = status_info.get('error', '任务处理失败')
+                    error_reasons.append(f"数据处理失败: {task_error}")
+                
+                if not file_success:
+                    file_error = status_info.get('file_generation', {}).get('error', '文件生成失败')
+                    error_reasons.append(f"文件生成失败: {file_error}")
+                
+                if not update_success:
+                    error_reasons.append("序列状态更新失败")
+                
+                message = f"项目 {project_id} 的分析处理失败，原因：" + ", ".join(error_reasons)
+                module = "Analysis Service"
+                status = "error"
+                
+                try:
+                    notification_manager.send_yunzhijia_alert(
+                        message=message,
+                        module=module,
+                        status=status,
+                        project_type=project_type
+                    )
+                    logger.info(f"已发送项目 {project_id} 的分析失败提醒")
+                except Exception as e:
+                    logger.error(f"发送项目 {project_id} 的分析失败提醒失败: {str(e)}")
 
 
 def run_analysis_process() -> Dict[str, Any]:
