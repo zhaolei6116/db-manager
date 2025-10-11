@@ -76,14 +76,12 @@ class IngestionService:
                 lims_processor = LIMSDataProcessor()
                 result = lims_processor.process_parsed_json_dict(
                     parsed_data=json_data,
-                    db_session=db_session,
                     source_name=file_name
                 )
                 
                 success = result["success"]
                 
-                # 提交事务
-                db_session.commit()
+              
                 
             if success:
                 logger.info(f"文件[{file_name}]处理成功")
