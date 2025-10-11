@@ -30,7 +30,7 @@ class IngestionService:
         """
         self.config = get_yaml_config(config_file)
         self.file_manager = None
-        self.data_processor = DataProcessor(config_file)
+        self.data_processor = JSONDataProcessor(config_file)
         
     def get_new_json_files(self) -> List[Path]:
         """

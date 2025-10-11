@@ -11,7 +11,7 @@ from src.utils.yaml_config import get_yaml_config
 
 logger = logging.getLogger(__name__)
 
-class DataProcessor:
+class JSONDataProcessor:
     """数据处理器：解析JSON文件并生成各表字典，包括合并后的sequence信息"""
 
     def __init__(self, config_file: Optional[str] = None):
@@ -203,7 +203,7 @@ if __name__ == "__main__":
     test_logger = logging.getLogger("JsonDataProcessorTest")
     
     # 创建数据处理器实例
-    processor = DataProcessor()
+    processor = JSONDataProcessor()
     
     # 测试JSON文件路径（请替换为实际的测试文件路径）
     test_json_path = Path("/home/zhaolei/project/LimsData/25092402/S22509231629_R1.json")
