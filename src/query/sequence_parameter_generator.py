@@ -130,7 +130,7 @@ class SequenceParameterGenerator:
             logger.error(f"生成parameter JSON失败: {str(e)}")
             return None
 
-    def generate_and_update_parameter(self, sequence_id: str) -> bool:
+    def generate_and_update_parameter(self, sequence_id: str) -> tuple:
         """
         为指定的sequence记录生成并更新parameter字段
         
@@ -138,33 +138,33 @@ class SequenceParameterGenerator:
             sequence_id: sequence的主键
         
         Returns:
-            bool: 更新是否成功
+            tuple: (是否成功, 失败原因/空字符串, 是否因为模板不存在)
         """
         try:
             # 1. 获取sequence记录
             sequence = self.sequence_repo.get_by_pk(sequence_id)
             if not sequence:
                 logger.error(f"未找到sequence_id={sequence_id}的记录")
-                return False
+                return False, "未找到sequence记录", False
             
             # 2. 获取project_type
             project_type = sequence.project_type
             if not project_type:
                 logger.error(f"sequence_id={sequence_id}的project_type为空")
-                return False
+                return False, "project_type为空", False
             
             # 3. 加载对应的pipeline模板配置
             pipeline_config = self._load_pipeline_config(project_type)
             if not pipeline_config:
                 logger.error(f"未找到project_type={project_type}的pipeline模板配置，当前还不支持这个项目类型")
                 # 不使用默认配置，直接返回失败
-                return False
+                return False, f"未找到project_type={project_type}的pipeline模板配置", True
             
             # 4. 生成parameter JSON
             parameter_json = self._generate_parameter_json(sequence, pipeline_config)
             if not parameter_json:
                 logger.error(f"为sequence_id={sequence_id}生成parameter JSON失败")
-                return False
+                return False, "生成parameter JSON失败", False
             
             # 5. 更新sequence记录的parameter字段
             update_success = self.sequence_repo.update_sequence_fields(
@@ -175,17 +175,17 @@ class SequenceParameterGenerator:
             
             if update_success:
                 logger.info(f"已成功更新sequence_id={sequence_id}的parameter字段")
-                return True
+                return True, "", False
             else:
                 logger.error(f"更新sequence_id={sequence_id}的parameter字段失败")
-                return False
+                return False, "更新parameter字段失败", False
                 
         except SQLAlchemyError as e:
             logger.error(f"数据库错误：生成或更新sequence_id={sequence_id}的parameter字段失败", exc_info=True)
-            return False
+            return False, f"数据库错误：{str(e)}", False
         except Exception as e:
             logger.error(f"生成或更新sequence_id={sequence_id}的parameter字段失败", exc_info=True)
-            return False
+            return False, f"系统错误：{str(e)}", False
  
     def batch_generate_and_update_parameters(self, sequence_ids: list) -> Dict[str, int]:
         """
@@ -207,7 +207,8 @@ class SequenceParameterGenerator:
             logger.info(f"开始批量生成并更新{len(sequence_ids)}条sequence记录的parameter字段")
             
             for sequence_id in sequence_ids:
-                if self.generate_and_update_parameter(sequence_id):
+                success, _, _ = self.generate_and_update_parameter(sequence_id)
+                if success:
                     result_stats['success'] += 1
                 else:
                     result_stats['failure'] += 1
