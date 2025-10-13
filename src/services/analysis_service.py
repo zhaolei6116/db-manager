@@ -285,9 +285,9 @@ class AnalysisService:
                         status=status,
                         project_type=project_type
                     )
-                    logger.info(f"已发送项目 {project_id} 的分析成功提醒")
+                    logger.info(f"已发送项目 {project_id} 的分析文件准备成功提醒")
                 except Exception as e:
-                    logger.error(f"发送项目 {project_id} 的分析成功提醒失败: {str(e)}")
+                    logger.error(f"发送项目 {project_id} 的分析文件准备成功提醒失败: {str(e)}")
             else:
                 # 有步骤失败，发送失败提醒
                 error_reasons = []
