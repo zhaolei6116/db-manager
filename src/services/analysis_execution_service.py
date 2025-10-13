@@ -18,6 +18,7 @@ from src.models.database import get_session
 from src.repositories.analysis_task_repository import AnalysisTaskRepository
 from src.utils.yaml_config import get_yaml_config
 from src.utils.logging_config import setup_logger
+from src.utils.notification_manager import notification_manager
 
 # 设置日志
 logger = setup_logger("analysis_execution_service")
@@ -104,12 +105,18 @@ class AnalysisExecutionService:
                     if success:
                         stats["successfully_submitted"] += 1
                         logger.info(f"成功提交任务 {task_dict['task_id']}: {task_dict['project_id']}")
+                        # 发送任务成功通知
+                        self._send_task_notification(task_dict, True)
                     else:
                         stats["failed_to_submit"] += 1
                         logger.error(f"提交任务 {task_dict['task_id']}: {task_dict['project_id']} 失败")
+                        # 发送任务失败通知
+                        self._send_task_notification(task_dict, False)
                 except Exception as e:
                     stats["failed_to_submit"] += 1
                     logger.error(f"处理任务 {task_dict['task_id']}: {task_dict['project_id']} 时发生错误: {str(e)}", exc_info=True)
+                    # 发送任务异常通知
+                    self._send_task_notification(task_dict, False, str(e))
             
         except Exception as e:
             logger.error(f"处理待执行任务时发生错误: {str(e)}", exc_info=True)
@@ -200,6 +207,48 @@ class AnalysisExecutionService:
                     logger.error(f"未找到任务 {task_id}，无法更新状态")
         except Exception as e:
             logger.error(f"更新任务 {task_id} 状态时发生错误: {str(e)}", exc_info=True)
+            
+    def _send_task_notification(self, task_dict: Dict, success: bool, error_message: str = None) -> None:
+        """
+        发送单个任务执行结果通知
+        
+        Args:
+            task_dict: 包含任务信息的字典
+            success: 任务执行是否成功
+            error_message: 可选的错误信息
+        """
+        try:
+            # 从任务信息中提取项目ID和项目类型
+            project_id = task_dict.get('project_id', '未知项目')
+            project_type = task_dict.get('project_type', None)
+            task_id = task_dict.get('task_id', '未知任务ID')
+            
+            # 根据执行结果构建通知消息
+            if success:
+                message = f"项目 {project_id} (任务ID: {task_id}) 分析任务提交成功"
+                status = "success"
+            else:
+                if error_message:
+                    message = f"项目 {project_id} (任务ID: {task_id}) 分析任务处理异常: {error_message}"
+                else:
+                    message = f"项目 {project_id} (任务ID: {task_id}) 分析任务提交失败"
+                status = "error"
+            
+            module = "Analysis Execution Service"
+            
+            # 发送通知，传入项目类型以便获取对应的webhook URL
+            notification_manager.send_yunzhijia_alert(
+                message=message,
+                module=module,
+                status=status,
+                project_type=project_type
+            )
+            
+            logger.info(f"已发送任务 {task_id} 的执行结果通知，项目类型: {project_type}")
+            
+        except Exception as e:
+            # 即使通知发送失败，也不影响主流程
+            logger.error(f"发送任务 {task_dict.get('task_id', '未知任务ID')} 执行结果通知时发生错误: {str(e)}")
 
 
 def run_analysis_execution_process(test_mode: bool = False) -> Dict[str, Any]:

@@ -251,8 +251,17 @@ class SequenceValidation:
                 return False, f"路径{full_barcode_path}不存在或不是目录"
             
             # 检查barcode文件夹是否为空
-            if not any(full_barcode_path.iterdir()):
-                return False, f"路径{full_barcode_path}存在但为空文件夹，下机数据不存在"
+            try:
+                # 直接检查目录中是否有文件或子目录
+                has_contents = False
+                for _ in full_barcode_path.iterdir():
+                    has_contents = True
+                    break
+                
+                if not has_contents:
+                    return False, f"路径{full_barcode_path}存在但为空文件夹，下机数据不存在"
+            except Exception as e:
+                return False, f"检查路径{full_barcode_path}内容时发生错误: {str(e)}"
             
             # 全部验证通过，返回最终路径
             return True, str(full_barcode_path)
