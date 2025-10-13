@@ -1,5 +1,6 @@
-"""数据录入服务
+"""数据录入服务（备份版）
 负责组合其他脚本功能，实现完整的数据录入业务逻辑
+此版本用于查缺补漏，使用不同的方法获取JSON文件
 """
 
 import logging
@@ -15,7 +16,7 @@ from src.processing.lims_data_processor import LIMSDataProcessor
 
 # 在模块级别配置日志
 from src.utils.logging_config import setup_logger
-logger = setup_logger("ingestion_service")
+logger = setup_logger("ingestion_service_backup")
 
 
 class IngestionService:
@@ -34,17 +35,17 @@ class IngestionService:
         
     def get_new_json_files(self) -> List[Path]:
         """
-        调用run_lims_puller获取所有新的JSON文件
+        获取所有新的JSON文件（查缺补漏版本）
         
         Returns:
             JSON文件路径列表
         """
-        logger.info("从LIMS系统拉取新的JSON文件")
+        logger.info("获取新的JSON文件（查缺补漏模式）")
         with get_session() as db_session:
             self.file_manager = FileManager(db_session)
-            new_files = self.file_manager.get_new_files_from_run_lims_puller()
+            new_files = self.file_manager.get_new_file_list()
         
-        logger.info(f"从LIMS系统拉取到{len(new_files)}个新的JSON文件")
+        logger.info(f"查缺补漏模式获取到{len(new_files)}个新的JSON文件")
         return new_files
     
     def process_single_json_file(self, file_path: Union[Path, str]) -> bool:
@@ -81,7 +82,6 @@ class IngestionService:
                 
                 success = result["success"]
                 
-              
                 
             if success:
                 logger.info(f"文件[{file_name}]处理成功")
@@ -138,7 +138,7 @@ def run_ingestion_process() -> Dict[str, Any]:
     Returns:
         处理结果统计信息
     """
-    logger.info("开始执行数据录入流程")
+    logger.info("开始执行数据录入流程（查缺补漏模式）")
     try:
         service = IngestionService()
         result = service.process_all_new_files()
@@ -157,7 +157,7 @@ def run_ingestion_process() -> Dict[str, Any]:
 if __name__ == "__main__":
     # 使用项目统一的日志配置，确保同时输出到文件和控制台
     from src.utils.logging_config import setup_logger
-    logger = setup_logger("ingestion_service")
+    logger = setup_logger("ingestion_service_backup")
     
     # 测试数据录入流程
     result = run_ingestion_process()

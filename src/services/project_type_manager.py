@@ -284,7 +284,7 @@ class ProjectTypeManager:
     @handle_exceptions
     def generate_run_sh(self, analysis_path: str, project_id: str) -> bool:
         """
-        生成run.sh执行脚本
+        生成run.sh执行脚本，在写入模板内容之前添加cd analysis_path命令
         
         Args:
             analysis_path: 分析目录路径
@@ -307,9 +307,17 @@ class ProjectTypeManager:
             default_content = f"#!/bin/bash\n\n# 项目分析脚本\n# 项目ID: {project_id}\n# 项目类型: {self.project_type}\n\n# 在这里添加分析命令\necho \"开始分析项目 {project_id}\"\n# nextflow run main.nf --input input.tsv --outdir results\necho \"分析完成\"\n"
             run_template = default_content
         
+        # 在模板内容前添加cd命令到分析路径
+        # 安全地处理模板内容，避免lstrip错误
+        if run_template.startswith('#!/bin/bash\n'):
+            template_content = run_template[12:]  # 跳过#!/bin/bash\n
+        else:
+            template_content = run_template
+        modified_template = f"#!/bin/bash\n\n# 切换到分析目录\ncd {analysis_path}\n\n{template_content}"
+        
         # 写入run.sh文件
         with open(run_sh_path, 'w', encoding='utf-8') as f:
-            f.write(run_template)
+            f.write(modified_template)
         
         # 设置执行权限
         os.chmod(run_sh_path, 0o755)
