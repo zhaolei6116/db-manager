@@ -122,8 +122,9 @@ sequence_run:
 
 # 项目类型分析路径
 project_type:
-  16SAMP: "/nas02/project/zhaolei/test_data_manger/16s"
-  Bacterial_assembly: "/nas02/project/zhaolei/test_data_manger/bacass"
+  analysis: "/home/zhaolei/project_analysis"
+  16SAMP: "/home/zhaolei/project_analysis/16SAMP"
+  bacteriaa_assembly: "/home/zhaolei/project_analysis/bacteriaa_assembly"
 
 # 项目类型与模板目录对应关系
 project_type_to_template:
@@ -225,4 +226,13 @@ scheduler:
   
   # 分析信息录入调度器配置
   analysis:
-    interval_minutes: 60  # 每小时执行一次
+    interval_minutes: 5  # 每5分钟执行一次
+  
+  # 分析执行调度器配置
+  analysis_execution:
+    interval_minutes: 5  # 每5分钟执行一次
+
+# 作业提交配置
+job_submission:
+  # qsub命令路径
+  qsub_path: "/opt/gridengine/bin/linux-x64/qsub"  # 模拟路径，实际环境中替换为真实路径

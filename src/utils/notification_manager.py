@@ -30,7 +30,7 @@ class NotificationManager:
                 "receivers": ["huyifan@cwbio.com.cn"],
                 "cc": ["zhaolei@cwbio.com.cn"]
             },
-            "webhook_url": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32",
+            "webhook_url": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=ac7e2999f2d041a8a3990aaef3366904",
             "start": True
         }
         

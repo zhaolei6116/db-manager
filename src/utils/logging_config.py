@@ -37,9 +37,18 @@ def setup_logger(name: Optional[str] = None) -> logging.Logger:
     logger = logging.getLogger(logger_name)
     logger.setLevel(log_config["log_level"].upper())
     
+    # 配置根日志器，确保所有子模块的日志都能被捕获
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_config["log_level"].upper())
+    
     # 清除所有已有处理器
     for handler in logger.handlers[:]:
         logger.removeHandler(handler)
+    
+    # 清除根日志器的处理器（除了第一个运行时添加的）
+    if len(root_logger.handlers) > 0:
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
     
     # 只添加一个复合处理器，避免重复输出
     formatter = logging.Formatter(
@@ -55,12 +64,12 @@ def setup_logger(name: Optional[str] = None) -> logging.Logger:
         encoding="utf-8"
     )
     file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
+    root_logger.addHandler(file_handler)
     
     # 控制台处理器
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
+    root_logger.addHandler(console_handler)
     
     # 防止通过父记录器传播（避免重复日志）
     logger.propagate = False
