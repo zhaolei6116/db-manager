@@ -104,7 +104,7 @@ fields_mapping:
 
 # 测序数据配置
 sequence_info:
-  sequence_data_path: /bioinformation/Project/Sequencing
+  sequence_data_path: /nas02/project/zhaolei/project/74_data_download
   sequence_name: Sequenator
   dir1: no_sample_id
   dir2: fastq_pass
