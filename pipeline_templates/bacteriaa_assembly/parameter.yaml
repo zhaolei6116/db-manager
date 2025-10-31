@@ -7,6 +7,7 @@ project_type: bacteria_assembly
 export_headers:
   - sequence_id
   - Project_type
+  - Batch_id
   - Project_id
   - Sample_id
   - Sample_name
@@ -24,6 +25,7 @@ export_headers:
 field_mappings:
   sequence_id: sequence.sequence_id
   Project_type: sequence.project_type
+  Batch_id: sequence.batch_id
   Project_id: sequence.project_id
   Sample_id: sequence.sample_id
   Sample_name: sample.sample_name

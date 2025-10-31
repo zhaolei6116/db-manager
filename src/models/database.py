@@ -4,6 +4,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Optional, Generator, Dict
 from contextlib import contextmanager
+import os
 
 # 导入YAML配置工具
 from src.utils.yaml_config import get_yaml_config
@@ -16,7 +17,7 @@ POOL_RECYCLE = 3600  # 1小时回收连接，避免超时
 
 def get_db_config(config_file: Optional[str] = None, user_role: Optional[str] = None) -> dict:
     """
-    读取数据库配置（从 config/config.yaml 读取）
+    读取数据库配置（从 config/config.yaml 读取，如果环境变量存在则优先使用环境变量）
     支持多用户配置，可以根据角色选择不同的数据库用户
     
     :param config_file: 配置文件路径（可选，用于向后兼容）
@@ -47,6 +48,14 @@ def get_db_config(config_file: Optional[str] = None, user_role: Optional[str] = 
     user_specific = users_config[user_role]
     result_config["user"] = user_specific.get("user", "")
     result_config["password"] = user_specific.get("password", "")
+    
+    # 从环境变量中读取配置，环境变量优先级高于配置文件
+    # 这样可以在容器化部署时灵活配置数据库连接信息
+    result_config["host"] = os.environ.get("DB_HOST", result_config["host"])
+    result_config["port"] = int(os.environ.get("DB_PORT", str(result_config["port"])))
+    result_config["user"] = os.environ.get("DB_USER", result_config["user"])
+    result_config["password"] = os.environ.get("DB_PASSWORD", result_config["password"])
+    result_config["database"] = os.environ.get("DB_NAME", result_config["database"])
     
     # 校验必填配置项
     required_keys = ["host", "port", "user", "password", "database"]
