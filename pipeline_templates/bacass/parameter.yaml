@@ -18,7 +18,6 @@ export_headers:
   - Barcode_type
   - Machine_version
   - Path
-  - Data_volume
   - Report_path
   - Report_raw_path
   - Custom_name

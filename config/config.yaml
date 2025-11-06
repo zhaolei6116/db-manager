@@ -40,7 +40,7 @@ database:
 
 # 输入 json 配置
 ingestion:
-  lims_data_path: /path/to/LimsData/
+  lims_data_path: /nas02/project/zhaolei/test_data_manger/LimsData/
   scan_interval: 1800  # 30 minutes
 
 # lims 数据配置
@@ -53,7 +53,7 @@ pull_request:
     - G
     - T
   START_OFFSET: 24 # 小时
-  path: /home/zhaolei/project/LimsData
+  path: /nas02/project/zhaolei/test_data_manger/LimsData
 
 
 # 原始数据字段映射
@@ -104,7 +104,7 @@ fields_mapping:
 
 # 测序数据配置
 sequence_info:
-  sequence_data_path: /bioinformation/Project/Sequencing
+  sequence_data_path: /nas02/project/zhaolei/project/74_data_download
   sequence_name: Sequenator
   dir1: no_sample_id
   dir2: fastq_pass
@@ -206,7 +206,7 @@ table_update_triggers:
 
 # 日志配置
 logging:
-  log_dir: log/          # 日志存储路径
+  log_dir: /nas02/project/zhaolei/test_data_manger/log/          # 日志存储路径
   log_level: INFO             # 日志级别（DEBUG/INFO/WARNING/ERROR）
   max_bytes: 10485760         # 单个日志文件最大大小（10MB）
   backup_count: 5             # 日志文件备份数量
