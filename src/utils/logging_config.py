@@ -99,6 +99,21 @@ def log_ingestion_result(file_name: str, success: bool, message: str, logger: lo
         logger.error(f"数据摄入失败 - 文件: {file_name}, 原因: {message}")
 
 
+def log_unknown_project_type(project_type: str, logger: logging.Logger) -> None:
+    """记录未知项目类型日志（WARNING级别）
+    
+    当检测到未在project_type_translation配置中的项目类型时调用
+    
+    Args:
+        project_type: 未配置的项目类型名称
+        logger: 日志器实例
+    """
+    logger.warning(
+        f"新项目类型检测 - 类型: {project_type} "
+        f"（未在project_type_map中配置，请添加到config.yaml）"
+    )
+
+
 # 模块专用日志器快捷获取
 def get_field_handler_logger() -> logging.Logger:
     """获取字段处理器专用日志器"""
@@ -129,3 +144,5 @@ if __name__ == "__main__":
     log_field_addition("sample", "new_quality", test_logger)
     log_ingestion_result("test.json", True, "导入10条记录", test_logger)
     log_ingestion_result("error.json", False, "格式错误", test_logger)
+    # 测试新项目类型日志
+    log_unknown_project_type("真菌完成图", test_logger)

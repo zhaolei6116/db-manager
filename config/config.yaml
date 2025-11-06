@@ -124,13 +124,19 @@ sequence_run:
 project_type:
   analysis: "/home/zhaolei/project_analysis"
   16SAMP: "/home/zhaolei/project_analysis/16SAMP"
-  bacteriaa_assembly: "/home/zhaolei/project_analysis/bacteriaa_assembly"
+  bacass: "/home/zhaolei/project_analysis/bacteriaa_assembly"
+
+# 项目类型中文对英文映射
+project_type_map:
+  "细菌完成图（标准分析）": "bacass_standard"
+  "细菌完成图（基础分析）": "bacass_basic"
+  
 
 # 项目类型与模板目录对应关系
 project_type_to_template:
-  "细菌完成图（标准分析）": "bacteriaa_assembly"
-  "细菌完成图（基础分析）": "bacteriaa_assembly"
-  16SAMP: "16SAMP"
+  "bacass_standard": "bacass"
+  "bacass_basic": "bacass"
+  "16SAMP": "16SAMP"
 
 # 新字段规则
 new_field_rules:
@@ -210,8 +216,8 @@ notification:
   # 不同项目类型对应的webhook URL
   webhooks:
     16SAMP: "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=project16s_token"  # 16S项目通知URL
-    细菌完成图（基础分析）: "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32"  # 细菌组装项目通知URL
-    细菌完成图（标准分析）: "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32"  # 细菌标准分析项目通知URL
+    bacass_basic: "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32"  # 细菌基础分析项目通知URL
+    bacass_standard: "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32"  # 细菌标准分析项目通知URL
     # 可以根据需要添加更多项目类型的webhook URL
 
 # 所有调度器的配置

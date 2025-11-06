@@ -204,44 +204,32 @@ Pipeline Job Status Update:
             logger.error(f"Webhook notification error: {str(e)}")
             return False
     
-    def send_yunzhijia_alert(self, message: str, module: str = "General", 
-                           status: str = "warning", project_type: Optional[str] = None) -> bool:
+    def send_yunzhijia_alert(self, message: str, project_type: str, module: str = "General", 
+                           status: str = "warning") -> bool:
         """
-        便捷方法：只发送云之家提醒
+        便捷方法：只发送到项目类型特定的云之家webhook
         
         Args:
             message: 提醒消息
+            project_type: 项目类型（必选），用于选择对应的webhook URL
             module: 模块名称
             status: 状态类型
-            project_type: 项目类型，用于选择对应的webhook URL
         
         Returns:
             bool: 发送是否成功
         """
-        result = self.send_notification(
-            message=message,
-            status=status,
-            module=module,
-            send_email=False,
-            send_webhook=True
-        )
-        
-        # 如果提供了project_type，还需要发送到项目类型对应的webhook
-        if project_type and self.get_webhook_url_for_project(project_type) != self.webhook_url:
-            try:
-                project_result = self._send_webhook(
-                    message=message,
-                    status=status,
-                    module=module,
-                    project_type=project_type
-                )
-                # 如果项目特定的webhook发送成功，则整体返回成功
-                if project_result:
-                    return True
-            except Exception as e:
-                logger.error(f"发送项目类型特定的webhook通知失败: {str(e)}")
-        
-        return result['webhook']
+        try:
+            # 只发送到项目类型特定的webhook
+            project_result = self._send_webhook(
+                message=message,
+                status=status,
+                module=module,
+                project_type=project_type
+            )
+            return project_result
+        except Exception as e:
+            logger.error(f"发送项目类型特定的webhook通知失败: {str(e)}")
+            return False
 
 
 # 创建全局实例，方便其他模块直接导入使用

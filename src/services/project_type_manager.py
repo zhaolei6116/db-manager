@@ -117,7 +117,7 @@ class ProjectTypeManager:
             self.project_type = project_type
             
             # 在初始化时获取并存储所有项目类型相关信息
-            self.english_name = self.get_english_project_type()
+            self.template_name = self.get_project_type_template()
             self.analysis_path = self._get_analysis_path_internal()
             self.template_dir = self._get_template_dir_internal()
             self.input_headers = self._get_input_headers_internal()
@@ -131,22 +131,22 @@ class ProjectTypeManager:
     
     @log_method_call
     @handle_exceptions
-    def get_english_project_type(self) -> str:
+    def get_project_type_template(self) -> str:
         """
         获取项目类型对应的英文名称
         
         Returns:
-            str: 项目类型对应的英文名称（未配置时返回原始项目类型）
+            str: 项目类型对应的模板名称（未配置时返回原始项目类型） 
         """
-        project_type_mapping = self.config.get('project_type_to_template', {})
+        run_template_mapping = self.config.get('project_type_to_template', {})
         
-        if self.project_type not in project_type_mapping:
-            logger.warning(f"项目类型 '{self.project_type}' 未配置对应英文名称")
+        if self.project_type not in run_template_mapping:
+            logger.warning(f"项目类型 '{self.project_type}' 未配置对应模板名称")
             return self.project_type
         
-        english_name = project_type_mapping[self.project_type]
-        logger.debug(f"项目类型 '{self.project_type}' 对应英文名称: {english_name}")
-        return english_name
+        template_name = run_template_mapping[self.project_type]
+        logger.debug(f"项目类型 '{self.project_type}' 对应模板名称: {template_name}")
+        return template_name
     
     @log_method_call
     @handle_exceptions
@@ -285,6 +285,7 @@ class ProjectTypeManager:
     def generate_run_sh(self, analysis_path: str, project_id: str) -> bool:
         """
         生成run.sh执行脚本，在写入模板内容之前添加cd analysis_path命令
+        如果没有模板，则报出原因并跳过
         
         Args:
             analysis_path: 分析目录路径
@@ -301,23 +302,22 @@ class ProjectTypeManager:
         # 直接使用初始化时存储的模板
         run_template = self.run_sh_template
         
-        # 如果没有模板，使用默认内容
+        # 如果没有模板，报出原因并跳过
         if not run_template:
-            logger.warning(f"使用默认run.sh内容")
-            default_content = f"#!/bin/bash\n\n# 项目分析脚本\n# 项目ID: {project_id}\n# 项目类型: {self.project_type}\n\n# 在这里添加分析命令\necho \"开始分析项目 {project_id}\"\n# nextflow run main.nf --input input.tsv --outdir results\necho \"分析完成\"\n"
-            run_template = default_content
+            logger.error(f"项目类型 '{self.project_type}' 没有对应的模板，无法生成run.sh文件")
+            return False
         
         # 在模板内容前添加cd命令到分析路径
         # 安全地处理模板内容，避免lstrip错误
-        if run_template.startswith('#!/bin/bash\n'):
-            template_content = run_template[12:]  # 跳过#!/bin/bash\n
-        else:
-            template_content = run_template
-        modified_template = f"#!/bin/bash\n\n# 切换到分析目录\ncd {analysis_path}\n\n{template_content}"
+        # if run_template.startswith('#!/bin/bash\n'):
+        #     template_content = run_template[12:]  # 跳过#!/bin/bash\n
+        # else:
+        #     template_content = run_template
+        # modified_template = f"#!/bin/bash\n\n# 切换到分析目录\ncd {analysis_path}\n\n{template_content}"
         
         # 写入run.sh文件
         with open(run_sh_path, 'w', encoding='utf-8') as f:
-            f.write(modified_template)
+            f.write(run_template)
         
         # 设置执行权限
         os.chmod(run_sh_path, 0o755)
