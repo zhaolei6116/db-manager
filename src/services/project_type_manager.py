@@ -387,9 +387,9 @@ class ProjectTypeManager:
             return path
         
         # 如果直接查找失败，尝试转换为英文项目类型再查找
-        english_type = self.get_english_project_type()
-        if english_type in project_type_paths:
-            path = project_type_paths[english_type]
+        template_type = self.get_project_type_template()
+        if template_type in project_type_paths:
+            path = project_type_paths[template_type]
             return path
         
         # 如果都找不到，使用默认分析路径
@@ -407,14 +407,14 @@ class ProjectTypeManager:
             str: 模板目录路径
         """
         # 获取英文项目类型
-        english_type = self.get_english_project_type()
+        template_type = self.get_project_type_template()
         
         # 构建模板目录路径
         config_dir = os.path.dirname(self.config.config_path)
         template_dir = os.path.join(
             config_dir, 
             "../pipeline_templates", 
-            english_type
+            template_type
         )
         
         return template_dir
