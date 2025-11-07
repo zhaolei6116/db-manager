@@ -100,6 +100,7 @@ class FileManager:
         """
         try:
             all_json_paths = get_all_json_in_lims_dir(temp_path)
+            print(all_json_paths)
             if not all_json_paths:
                 self.logger.info("未获取到任何JSON文件")
                 return []
@@ -160,6 +161,41 @@ class FileManager:
             self.logger.error("从run_lims_puller获取新文件列表失败", exc_info=True)
             return []
     
+    def update_file_process_status(self, file_name: str, status: str) -> bool:
+        """
+        更新文件处理状态
+        
+        :param file_name: 文件名（主键）
+        :param status: 处理状态 ('success' 或 'failed')
+        :return: 是否更新成功
+        """
+        self._ensure_repo()
+        try:
+            # 检查文件是否存在
+            if not self.check_file_existence(file_name):
+                self.logger.warning(f"文件[{file_name}]不存在于input_file_metadata表中，无法更新状态")
+                return False
+            
+            # 使用BaseRepository的update_field方法更新process_status字段
+            success, _ = self.input_file_repo.update_field(
+                pk_value=file_name,
+                field_name='process_status',
+                new_value=status,
+                operator='system'
+            )
+            
+            if success:
+                self.logger.info(f"文件[{file_name}]处理状态已更新为[{status}]")
+            else:
+                self.logger.warning(f"文件[{file_name}]处理状态更新失败")
+            
+            return success
+        except SQLAlchemyError as e:
+            self.logger.error(f"更新文件[{file_name}]处理状态失败", exc_info=True)
+            raise
+        except Exception as e:
+            self.logger.error(f"处理文件[{file_name}]状态更新时发生未预期异常", exc_info=True)
+            raise
 
 
 # 添加测试代码块

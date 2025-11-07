@@ -10,4 +10,4 @@ from .sequence_processor import CombinedSequenceProcessor
 
 # 工具类
 from .file_management import FileManager
-from .json_data_processor import DataProcessor
+from .json_data_processor import JSONDataProcessor

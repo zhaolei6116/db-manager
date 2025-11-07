@@ -66,10 +66,9 @@ CREATE TABLE sequence (
     lab_sequencer_id VARCHAR(50),             -- 组合: Laboratory + Sequencer_id (e.g., T06)
     batch_id_path VARCHAR(255),                -- 模板生成: /{path}/{lab_sequencer_id}/{batch_id}
     raw_data_path VARCHAR(255),                -- 模板生成: /{batch_id_path}/{barcode}
-    data_status ENUM('valid', 'invalid', 'pending') DEFAULT 'pending', -- 逻辑: Sample_status="合格" → 'valid'
-    process_status ENUM('yes', 'no') DEFAULT 'no', -- 默认 'no'，处理后更新
     parameters JSON,                           -- 基于 config.yaml 和 project_type (e.g., {"genome_size": "-"})
-    analysis_status ENUM('yes', 'no') DEFAULT 'no', -- 默认 'no'，分析后更新
+    data_status ENUM('valid', 'invalid', 'pending') DEFAULT 'pending', -- 逻辑: Sample_status="合格" → 'valid'
+    process_status ENUM('yes', 'no') DEFAULT 'no', -- 默认 'no'，处理后更新  
     version INT DEFAULT 1,                     -- 默认 1，补测时 MAX(version)+1
     run_type ENUM('initial', 'supplement', 'retest') DEFAULT 'initial', -- 检查 UNIQUE(sample_id, batch_id, project_type, barcode)
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

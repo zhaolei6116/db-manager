@@ -10,7 +10,9 @@ from src.models.database import get_session
 from src.utils.yaml_config import get_yaml_config
 from src.processing.sequence_validation import SequenceValidation
 
-logger = logging.getLogger(__name__)
+# 在模块级别配置日志
+from src.utils.logging_config import setup_logger
+logger = setup_logger("validation_service")
 
 
 class ValidationService:
@@ -139,11 +141,9 @@ def run_validation_process() -> Dict[str, Any]:
 
 
 if __name__ == "__main__":
-    # 配置日志
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    # 使用项目统一的日志配置，确保同时输出到文件和控制台
+    from src.utils.logging_config import setup_logger
+    logger = setup_logger("validation_service")
     
     # 测试数据验证流程
     result = run_validation_process()

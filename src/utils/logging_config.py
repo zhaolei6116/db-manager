@@ -37,9 +37,18 @@ def setup_logger(name: Optional[str] = None) -> logging.Logger:
     logger = logging.getLogger(logger_name)
     logger.setLevel(log_config["log_level"].upper())
     
+    # 配置根日志器，确保所有子模块的日志都能被捕获
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_config["log_level"].upper())
+    
     # 清除所有已有处理器
     for handler in logger.handlers[:]:
         logger.removeHandler(handler)
+    
+    # 清除根日志器的处理器（除了第一个运行时添加的）
+    if len(root_logger.handlers) > 0:
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
     
     # 只添加一个复合处理器，避免重复输出
     formatter = logging.Formatter(
@@ -55,12 +64,12 @@ def setup_logger(name: Optional[str] = None) -> logging.Logger:
         encoding="utf-8"
     )
     file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
+    root_logger.addHandler(file_handler)
     
     # 控制台处理器
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
+    root_logger.addHandler(console_handler)
     
     # 防止通过父记录器传播（避免重复日志）
     logger.propagate = False
@@ -88,6 +97,21 @@ def log_ingestion_result(file_name: str, success: bool, message: str, logger: lo
         logger.info(f"数据摄入成功 - 文件: {file_name}, 信息: {message}")
     else:
         logger.error(f"数据摄入失败 - 文件: {file_name}, 原因: {message}")
+
+
+def log_unknown_project_type(project_type: str, logger: logging.Logger) -> None:
+    """记录未知项目类型日志（WARNING级别）
+    
+    当检测到未在project_type_translation配置中的项目类型时调用
+    
+    Args:
+        project_type: 未配置的项目类型名称
+        logger: 日志器实例
+    """
+    logger.warning(
+        f"新项目类型检测 - 类型: {project_type} "
+        f"（未在project_type_map中配置，请添加到config.yaml）"
+    )
 
 
 # 模块专用日志器快捷获取
@@ -120,3 +144,5 @@ if __name__ == "__main__":
     log_field_addition("sample", "new_quality", test_logger)
     log_ingestion_result("test.json", True, "导入10条记录", test_logger)
     log_ingestion_result("error.json", False, "格式错误", test_logger)
+    # 测试新项目类型日志
+    log_unknown_project_type("真菌完成图", test_logger)

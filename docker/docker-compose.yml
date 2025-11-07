@@ -17,12 +17,45 @@ services:
       - "3306:3306"
     volumes:
       - /nas02/project/zhaolei/database/mysql_data:/var/lib/mysql
+      # 挂载宿主机时间文件以保持时间同步
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pvklz123"]
       interval: 30s
       timeout: 3s
       retries: 3
 
+  app:
+    image: bioinfo_app:v1.0
+    build:
+      context: ..
+      dockerfile: docker/app.Dockerfile
+    container_name: bioinfo_app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      # 挂载分析目录
+      - /home/zhaolei/project_analysis:/home/zhaolei/project_analysis
+      # 挂载日志目录
+      - /home/zhaolei/project/data_management/logs:/app/logs
+      # 挂载原始数据目录
+      - /bioinformation/Project/Sequencing:/bioinformation/Project/Sequencing:ro
+      # 挂载宿主机时间文件以保持时间同步
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    # 设置环境变量
+    environment:
+      # 数据库连接信息（通过服务名称访问）
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: bio_db
+      DB_USER: root
+      DB_PASSWORD: vklz123
+    networks:
+      - default
 
 # 手动定义网络和子网
 networks:

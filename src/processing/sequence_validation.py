@@ -46,6 +46,7 @@ class SequenceValidation:
         3. 根据config.yaml中的sequence_info配置验证路径
         4. 记录验证结果，但不更新数据状态
         5. 对超过2小时未满足条件的记录报出原因
+        6. 对有效的路径更新 raw_data_path 为最终路径
         
         Returns:
             tuple: (验证通过的记录主键列表, 总验证记录数)
@@ -100,7 +101,7 @@ class SequenceValidation:
                     try:
                         self.sequence_repo.update_sequence_fields(
                             sequence_id=sequence_id,
-                            raw_data_path=str(result)
+                            update_data={"raw_data_path": str(result)}
                         )
                         logger.info(f"已更新sequence_id={sequence_id}的raw_data_path字段为: {result}")
                     except Exception as update_err:
@@ -156,20 +157,27 @@ class SequenceValidation:
                 project_repo=self.project_repo
             )
             
-            # 更新parameter字段json
-            param_success = parameter_generator.generate_and_update_parameter(sequence_id)
+            # 更新parameter字段json，获取详细结果信息
+            success, error_msg, is_template_not_exists = parameter_generator.generate_and_update_parameter(sequence_id)
             
-            if param_success:
-                # parameter更新成功后，再更新数据状态为'valid'
-                update_success = self._update_sequence_data_status(sequence_id, 'valid')
-                if update_success:
-                    logger.info(f"sequence_id={sequence_id}状态更新成功")
-                    return True
-                else:
-                    logger.error(f"sequence_id={sequence_id} parameter更新成功但状态更新失败")
-                    return False
+            if not success:
+                logger.error(f"为sequence_id={sequence_id}生成参数失败: {error_msg}")
+                
+                # 如果是因为模板不存在而失败，则更新data_status为'invalid'
+                if is_template_not_exists:
+                    logger.info(f"由于模板不存在，将sequence_id={sequence_id}的data_status更新为'invalid'")
+                    return self._update_sequence_data_status(sequence_id, 'invalid')
+                
+                # 其他失败情况返回False
+                return False
+            
+            # parameter更新成功后，再更新数据状态为'valid'
+            update_success = self._update_sequence_data_status(sequence_id, 'valid')
+            if update_success:
+                logger.info(f"sequence_id={sequence_id}状态更新成功")
+                return True
             else:
-                logger.error(f"sequence_id={sequence_id} parameter更新失败")
+                logger.error(f"sequence_id={sequence_id} parameter更新成功但状态更新失败")
                 return False
         except SQLAlchemyError as e:
             logger.error(f"数据库错误：更新sequence数据状态失败，sequence_id={sequence_id}", exc_info=True)
@@ -243,8 +251,17 @@ class SequenceValidation:
                 return False, f"路径{full_barcode_path}不存在或不是目录"
             
             # 检查barcode文件夹是否为空
-            if not any(full_barcode_path.iterdir()):
-                return False, f"路径{full_barcode_path}存在但为空文件夹，下机数据不存在"
+            try:
+                # 直接检查目录中是否有文件或子目录
+                has_contents = False
+                for _ in full_barcode_path.iterdir():
+                    has_contents = True
+                    break
+                
+                if not has_contents:
+                    return False, f"路径{full_barcode_path}存在但为空文件夹，下机数据不存在"
+            except Exception as e:
+                return False, f"检查路径{full_barcode_path}内容时发生错误: {str(e)}"
             
             # 全部验证通过，返回最终路径
             return True, str(full_barcode_path)

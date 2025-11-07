@@ -146,6 +146,14 @@ class YAMLConfig:
         """获取项目类型分析路径配置（project_type节点）"""
         return self.get("project_type", required=True)
 
+    def get_project_type_map(self) -> Dict[str, str]:
+        """获取项目类型中文对英文映射配置（project_type_map节点）
+        
+        Returns:
+            项目类型映射字典，键为中文项目类型，值为英文项目类型
+        """
+        return self.get("project_type_map", required=True)
+
     def get_new_field_rules(self) -> List[Dict[str, Any]]:
         """获取新字段处理规则（new_field_rules节点）"""
         return self.get("new_field_rules", default=[], required=False)
@@ -264,8 +272,14 @@ if __name__ == "__main__":
         sequence_info = config.get_sequence_info_config()
         test_logger.debug(f"序列信息配置: \n{pformat(sequence_info)}")
         test_logger.info(f"序列数据路径: {sequence_info.get('sequence_data_path')}")
+        
+        # 4. 测试项目类型映射配置
+        project_type_map = config.get_project_type_map()
+        test_logger.debug(f"项目类型映射配置: \n{pformat(project_type_map)}")
+        test_logger.info(f"项目类型映射数量: {len(project_type_map)}")
+        test_logger.info(f"项目类型映射示例: {list(project_type_map.items())[:2]}")
 
-        # 4. 测试按路径获取配置项（嵌套节点）
+        # 5. 测试按路径获取配置项（嵌套节点）
         test_logger.info("\n=== 测试按路径获取嵌套配置项 ===")
         scan_interval = config.get("ingestion.scan_interval")
         test_logger.info(f"数据摄入扫描间隔: {scan_interval}秒")
