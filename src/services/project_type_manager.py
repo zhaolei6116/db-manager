@@ -124,7 +124,7 @@ class ProjectTypeManager:
             self.run_sh_template = self._get_run_sh_template_internal()
             self.parameter_config = self._load_parameter_config()
             
-            logger.info(f"项目类型 '{project_type}' 初始化完成，英文名称: {self.english_name}")
+            logger.info(f"项目类型 '{project_type}' 初始化完成，模板名称: {self.template_name}")
         except Exception as e:
             logger.error(f"项目类型 '{project_type}' 初始化失败: {str(e)}", exc_info=True)
             raise ValueError(f"项目类型管理器初始化失败: {str(e)}")
