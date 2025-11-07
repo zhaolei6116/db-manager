@@ -61,13 +61,12 @@ class JSONDataProcessor:
                 'sequence': self.get_combined_sequence_dict(json_data)
             }
             
-            # 检查并映射project_type
+            # 检查project_type
             project_type = result['sequence'].get('project_type')
             if project_type:
-                # 如果project_type在映射中存在，进行转换
+                # 如果project_type在映射中存在，直接返回result
                 if project_type in self.project_type_map:
-                    result['sequence']['project_type'] = self.project_type_map[project_type]
-                    logger.info(f"项目类型映射: {project_type} -> {self.project_type_map[project_type]}")
+                    logger.info(f"项目类型{project_type}验证通过")
                 else:
                     # 如果project_type不在映射中，记录警告日志并返回None
                     log_unknown_project_type(project_type, logger)
