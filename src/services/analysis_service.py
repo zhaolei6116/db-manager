@@ -80,10 +80,21 @@ class AnalysisService:
                         'file_generation': file_status[project_key]
                     })
             
-            # 步骤4: 更新已处理序列的process_status
+            # 步骤4: 更新已处理序列的process_status - 只更新文件生成成功的项目组
             update_success = True
             try:
-                self.update_sequence_process_status(dict1)
+                # 收集文件生成成功的项目组
+                successful_project_groups = {}
+                for project_key in file_status:
+                    if file_status[project_key]['success'] and project_key in dict1:
+                        successful_project_groups[project_key] = dict1[project_key]
+                
+                # 只更新文件生成成功的项目组对应的序列状态
+                if successful_project_groups:
+                    logger.info(f"准备更新 {len(successful_project_groups)} 个成功项目组的序列状态")
+                    self.update_sequence_process_status(successful_project_groups)
+                else:
+                    logger.info("没有文件生成成功的项目组，无需更新序列状态")
             except Exception as e:
                 update_success = False
                 logger.error(f"更新序列处理状态失败: {str(e)}")
