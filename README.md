@@ -1,93 +1,263 @@
-# db-manager
+# 生物样本测序数据管理系统
 
+## 项目概述
 
+本项目是一个基于MySQL数据库的自动化生物样本测序数据管理系统，旨在实现从LIMS系统数据获取、解析、验证到分析任务生成的全流程自动化。系统支持高频补测、按project_id+project_type分组分析以及Nextflow --resume机制，有效提高生物信息分析流程的自动化水平和管理效率。
 
-## Getting started
+## 系统架构
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+### 核心流程
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+1. **数据获取**：定时扫描LIMS系统导出的JSON文件或通过API直接拉取数据
+2. **数据解析**：将JSON数据映射到系统内部数据结构
+3. **数据验证**：验证样本数据状态和完整性
+4. **任务生成**：为验证通过的样本生成分析任务和TSV输入文件
+5. **状态管理**：跟踪和更新样本及分析任务的状态
 
-## Add your files
+### 数据库结构
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+系统包含7个核心数据表，用于存储和管理生物样本测序数据：
+- `project`: 存储项目基本信息
+- `sample`: 存储样本信息
+- `batch`: 存储批次信息
+- `sequence`: 存储测序数据信息
+- `analysis_tasks`: 存储分析任务信息
+- `input_file_metadata`: 存储输入文件元数据
+- `field_corrections`: 存储字段修正记录
+
+所有数据库操作基于SQLAlchemy ORM实现，确保代码的可维护性和安全性。
+
+## 技术栈
+
+- **Python**: 3.10+
+- **数据库**: MySQL 8.0+
+- **ORM框架**: SQLAlchemy
+- **定时任务**: APScheduler
+- **配置管理**: PyYAML
+- **日志系统**: Python标准logging模块
+- **容器化**: Docker和Docker Compose（可选部署方式）
+
+## 配置指南
+
+### 1. 数据库配置
+
+在`config/database.ini`文件中配置MySQL数据库连接信息：
+
+```ini
+[mysql]
+host = localhost
+user = username
+password = password
+database = data_management
+port = 3306
+```
+
+### 2. 系统配置
+
+编辑`config/config.yaml`文件，配置系统运行所需的各项参数：
+
+#### 数据库连接配置
+```yaml
+database:
+  host: localhost
+  port: 3306
+  user: username
+  password: password
+  dbname: data_management
+```
+
+#### 输入文件配置
+```yaml
+input_files:
+  lims_data_path: "/path/to/lims/data"
+  scan_interval: 300  # 扫描间隔（秒）
+```
+
+#### LIMS数据配置
+```yaml
+lims_data:
+  labs_available_to_pull: ["lab1", "lab2"]  # 可拉取数据的实验室列表
+```
+
+#### 项目类型配置
+```yaml
+project_type:
+  16SAMP:  # 项目类型名称
+    template_dir: "/pipeline_templates/16SAMP"  # 模板目录
+    parameters:  # 项目参数
+      param1: value1
+      param2: value2
+  bacass:
+    template_dir: "/pipeline_templates/bacass"
+    parameters:
+      param1: value1
+```
+
+#### 日志配置
+```yaml
+logging:
+  log_dir: "/path/to/logs"
+  log_level: "INFO"
+  log_format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+```
+
+#### 调度器配置
+```yaml
+schedulers:
+  lims_pull_interval_minutes: 30
+  sequence_validation_interval_minutes: 15
+  analysis_scheduling_interval_minutes: 10
+  analysis_execution_interval_minutes: 5
+```
+
+## 安装与部署
+
+### 1. 环境准备
+
+```bash
+# 克隆仓库
+git clone <repository_url>
+cd data_management
+
+# 安装依赖
+pip install -r requirements.txt
+```
+
+### 2. 数据库初始化
+
+确保MySQL数据库已创建，并配置了正确的用户权限。系统启动时会自动创建必要的数据表结构。
+
+### 3. 运行系统
+
+```bash
+# 启动主程序
+python src/main.py
+```
+
+### 4. 使用Docker部署（可选）
+
+```bash
+# 构建并启动Docker容器
+docker-compose -f docker/docker-compose.yml up -d
+```
+
+## 项目运行逻辑
+
+### 1. 数据获取阶段
+- `lims_puller.py` 负责从LIMS系统拉取数据
+- 支持文件系统扫描和API调用两种方式
+- 获取的数据保存为JSON格式
+
+### 2. 数据处理阶段
+- `json_data_processor.py` 解析JSON数据并映射到系统内部结构
+- 各实体处理器（`project_processor.py`, `sample_processor.py`等）处理特定类型的数据
+- 数据插入到相应的数据库表中
+
+### 3. 数据验证阶段
+- `validation_service.py` 验证样本数据状态
+- 检查原始数据文件是否存在且完整
+- 更新验证后的data_status
+
+### 4. 任务生成阶段
+- `analysis_service.py` 为验证通过的样本生成分析任务
+- 按project_id+project_type分组创建TSV输入文件
+- 支持参数化配置和模板渲染
+
+### 5. 任务执行阶段
+- `analysis_execution_scheduler.py` 定时检查待执行任务
+- 调用外部分析流程（如Nextflow）执行任务
+- 更新任务执行状态
+
+## 目录结构
 
 ```
-cd existing_repo
-git remote add origin http://192.168.100.13/zl3/db-manager.git
-git branch -M main
-git push -uf origin main
+data_management/
+├── src/                       # 源代码目录
+│   ├── models/                # ORM模型
+│   │   ├── __init__.py
+│   │   ├── database.py        # 数据库连接管理
+│   │   └── models.py          # 数据模型定义
+│   ├── repositories/          # 数据访问层
+│   │   ├── __init__.py
+│   │   ├── base_repository.py # 基础仓库类
+│   │   └── *.py               # 各实体仓库实现
+│   ├── processing/            # 数据处理层
+│   │   ├── __init__.py
+│   │   ├── json_data_processor.py  # JSON解析器
+│   │   └── *.py               # 各处理器实现
+│   ├── services/              # 业务逻辑层
+│   │   ├── __init__.py
+│   │   ├── analysis_service.py     # 分析任务服务
+│   │   └── *.py               # 各服务实现
+│   ├── schedulers/            # 调度器
+│   │   ├── __init__.py
+│   │   ├── base_scheduler.py  # 基础调度器
+│   │   └── *.py               # 各调度器实现
+│   ├── utils/                 # 工具类
+│   │   ├── __init__.py
+│   │   ├── yaml_config.py     # 配置加载
+│   │   └── logging_config.py  # 日志配置
+│   └── main.py                # 主程序入口
+├── config/                    # 配置文件目录
+│   ├── config.yaml            # 系统配置
+│   └── database.ini           # 数据库配置
+├── pipeline_templates/        # 分析流程模板
+│   ├── 16SAMP/                # 16S分析模板
+│   └── bacass/                # 细菌组装模板
+├── logs/                      # 日志目录
+├── tests/                     # 测试目录
+├── requirements.txt           # Python依赖列表
+└── README.md                  # 项目说明文档
 ```
 
-## Integrate with your tools
+## 使用指南
 
-- [ ] [Set up project integrations](http://192.168.100.13/zl3/db-manager/-/settings/integrations)
+### 添加新的项目类型
 
-## Collaborate with your team
+1. 在`pipeline_templates`目录下创建新的项目类型目录
+2. 添加必要的模板文件（如`parameter.yaml`和`run.mk`）
+3. 在`config/config.yaml`中配置新的项目类型参数
+4. 重启服务使配置生效
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+### 监控系统运行
 
-## Test and Deploy
+1. 查看`logs`目录下的日志文件监控系统运行状态
+2. 使用数据库查询检查数据导入和任务生成情况
+3. 通过Webhook配置接收任务状态通知（如果已配置）
 
-Use the built-in continuous integration in GitLab.
+## 故障排除
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+### 常见问题
 
-***
+1. **数据导入失败**
+   - 检查JSON文件格式是否正确
+   - 确认字段映射配置是否匹配
+   - 查看日志获取详细错误信息
 
-# Editing this README
+2. **任务生成失败**
+   - 验证数据状态是否为有效
+   - 检查项目类型配置是否正确
+   - 确认模板文件路径是否存在
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+3. **数据库连接问题**
+   - 验证数据库配置信息
+   - 确认MySQL服务是否运行
+   - 检查网络连接和防火墙设置
 
-## Suggestions for a good README
+## 贡献指南
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+欢迎对本项目进行贡献！如果您有任何改进建议或发现问题，请通过以下方式参与：
 
-## Name
-Choose a self-explaining name for your project.
+1. Fork本项目仓库
+2. 创建您的功能分支 (`git checkout -b feature/amazing-feature`)
+3. 提交您的更改 (`git commit -m 'Add some amazing feature'`)
+4. 推送到分支 (`git push origin feature/amazing-feature`)
+5. 打开一个Pull Request
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+## 许可证
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+[此处放置许可证信息]
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+## 联系方式
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+[此处放置项目维护者联系方式]
