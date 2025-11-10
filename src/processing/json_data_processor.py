@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 from typing import Dict, Any, Optional
 from src.utils.yaml_config import get_yaml_config
+from src.utils.logging_config import log_unknown_project_type
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ class JSONDataProcessor:
         self.fields_mapping = self.config.get_fields_mapping()
         self.sequence_info_config = self.config.get_sequence_info_config()
         self.sequence_run_config = self.config.get_sequence_run_config()
+        self.project_type_map = self.config.get_project_type_map()
 
     def parse_json_file(self, json_path: Path) -> Optional[Dict[str, Any]]:
         """
@@ -58,6 +60,21 @@ class JSONDataProcessor:
                 'batch': self.get_batch_dict(json_data),
                 'sequence': self.get_combined_sequence_dict(json_data)
             }
+            
+            # 检查project_type
+            project_type = result['sequence'].get('project_type')
+            if project_type:
+                # 如果project_type在映射中存在，直接返回result
+                if project_type in self.project_type_map:
+                    logger.info(f"项目类型{project_type}验证通过")
+                else:
+                    # 如果project_type不在映射中，记录警告日志并返回None
+                    log_unknown_project_type(project_type, logger)
+                    logger.warning(f"JSON文件[{json_path}]包含未配置的项目类型: {project_type}，解析结果将被忽略")
+                    return None
+            else:
+                logger.error(f"JSON文件[{json_path}]缺少project_type字段")
+                return None
             
             logger.info(f"成功解析JSON文件：{json_path}")
             return result

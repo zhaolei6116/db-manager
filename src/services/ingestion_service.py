@@ -68,7 +68,7 @@ class IngestionService:
             # 1. 解析JSON文件获取结果字典
             json_data = self.data_processor.parse_json_file(file_path)
             if not json_data:
-                logger.error(f"文件[{file_name}]解析失败")
+                logger.error(f"文件[{file_name}]解析失败，可能原因：1) JSON格式错误 2) 缺少project_type字段 3) 项目类型未在config.yaml中配置")
                 return False
             
             # 2. 为每个文件创建单独的session，调用process_parsed_json_dict处理解析后的字典

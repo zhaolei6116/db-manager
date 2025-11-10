@@ -18,9 +18,9 @@ export_headers:
   - Barcode_type
   - Machine_version
   - Path
-  - Data_volume
   - Report_path
   - Report_raw_path
+  - Custom_name
 
 # 字段映射配置 - 使用表.字段格式简化配置
 field_mappings:
@@ -39,6 +39,7 @@ field_mappings:
   Path: sequence.raw_data_path
   Report_path: sequence.report_path
   Report_raw_path: sequence.report_raw_path
+  Custom_name: project.custom_name
 
 # 表关联规则配置
 join_rules:
