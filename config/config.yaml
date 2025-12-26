@@ -40,7 +40,7 @@ database:
 
 # 输入 json 配置
 ingestion:
-  lims_data_path: /nas02/project/zhaolei/test_data_manger/LimsData/
+  lims_data_path: /nas02/project/bacass/LimsData/
   scan_interval: 1800  # 30 minutes
 
 # lims 数据配置
@@ -53,7 +53,7 @@ pull_request:
     - G
     - T
   START_OFFSET: 24 # 小时
-  path: /nas02/project/zhaolei/test_data_manger/LimsData
+  path: /nas02/project/bacass/LimsData
 
 
 # 原始数据字段映射
@@ -124,7 +124,7 @@ sequence_run:
 project_type:
   analysis: "/home/zhaolei/project_analysis"
   16SAMP: "/home/zhaolei/project_analysis/16SAMP"
-  bacass: "/nas02/project/zhaolei/test_data_manger/bacteriaa_assembly"
+  bacass: "/nas02/project/bacass"
 
 # 项目类型中文对英文映射
 project_type_map:
@@ -206,7 +206,7 @@ table_update_triggers:
 
 # 日志配置
 logging:
-  log_dir: /nas02/project/zhaolei/test_data_manger/log/          # 日志存储路径
+  log_dir: /nas02/project/bacass/log/          # 日志存储路径
   log_level: INFO             # 日志级别（DEBUG/INFO/WARNING/ERROR）
   max_bytes: 10485760         # 单个日志文件最大大小（10MB）
   backup_count: 5             # 日志文件备份数量
@@ -228,11 +228,11 @@ scheduler:
   
   # 下机路径扫描调度器配置
   sequencing:
-    interval_minutes: 15  # 每15分钟执行一次
+    interval_minutes: 10  # 每15分钟执行一次
   
   # 分析信息录入调度器配置
   analysis:
-    interval_minutes: 5  # 每5分钟执行一次
+    interval_minutes: 10  # 每5分钟执行一次
   
   # 分析执行调度器配置
   analysis_execution:
