@@ -32,8 +32,8 @@ class SchedulerManager:
             LIMSScheduler(),  # 负责定时拉取和删除信息单
             InputSampleScheduler(),  # 负责定时将信息单的信息存到数据库中
             SequencingScheduler(),
-            AnalysisScheduler(),
-            AnalysisExecutionScheduler()  # 负责定期提交分析任务到计算队列
+            AnalysisScheduler()
+#            AnalysisExecutionScheduler()  # 负责定期提交分析任务到计算队列
             # 未来添加新的调度器只需在这里实例化并添加
         ]
         self.logger.info(f"已注册{len(self.schedulers)}个调度器")
