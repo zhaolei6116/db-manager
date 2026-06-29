@@ -7,7 +7,7 @@
 
 source /nas02/software/conda/Miniconda3/miniconda3/bin/activate /nas02/project/huyifan/software/nextflow/v24.04.4
 nextflow -log nextflow.log \
-        run  /nas02/pipeline/bac_genome_assembly/latest_version/main.nf \
+        run  /nas02/pipeline/large_pla/current_version/main.nf  \
         -profile sge -qs 20 -resume \
         --input ./input.tsv & pid=$!
 #--------------------------------------------------------------------------------------------------------------------

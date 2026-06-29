@@ -33,7 +33,7 @@ class IngestionService:
         self.file_manager = None
         self.data_processor = JSONDataProcessor(config_file)
         
-    def get_new_json_files(self, json_dir: Optional[str] = None) -> List[Path]:
+    def get_new_json_files(self, json_dir: Optional[Union[Path, str]] = None) -> List[Path]:
         """
         获取所有新的JSON文件（查缺补漏版本）
         
@@ -97,7 +97,7 @@ class IngestionService:
             logger.error(f"文件[{file_name}]处理过程中发生异常: {str(e)}", exc_info=True)
             return False
     
-    def process_all_new_files(self, json_dir: Optional[str] = None) -> Dict[str, Any]:
+    def process_all_new_files(self, json_dir: Optional[Union[Path, str]] = None) -> Dict[str, Any]:
         """
         循环处理所有新的JSON文件
         

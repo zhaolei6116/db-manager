@@ -40,7 +40,7 @@ database:
 
 # 输入 json 配置
 ingestion:
-  lims_data_path: /nas02/project/zhaolei/test_data_manger/LimsData/
+  lims_data_path: /nas02/project/bacass/LimsData/
   scan_interval: 1800  # 30 minutes
 
 # lims 数据配置
@@ -53,7 +53,7 @@ pull_request:
     - G
     - T
   START_OFFSET: 24 # 小时
-  path: /nas02/project/zhaolei/test_data_manger/LimsData
+  path: /nas02/project/bacass/LimsData
 
 
 # 原始数据字段映射
@@ -124,7 +124,8 @@ sequence_run:
 project_type:
   analysis: "/home/zhaolei/project_analysis"
   16SAMP: "/home/zhaolei/project_analysis/16SAMP"
-  bacass: "/nas02/project/zhaolei/test_data_manger/bacteriaa_assembly"
+  bacass: "/nas02/project/bacass"
+  large_pla: "/nas02/project/large_pla"
 
 # 项目类型中文对英文映射
 project_type_map:
@@ -133,21 +134,24 @@ project_type_map:
   "酵母近完成图（标准分析）": "yeast_assembly_standard"
   "真菌精细图": "fungi_high_quality_assembly"
   "酵母近完成图（基础分析）": "yeast_assembly_basic"
+  "超大质粒测序": "large_pla"
 
 # 数据流转项目类型配置（只有这些项目类型的数据会继续往下流转处理）
 data_flow_project_types:
   - "细菌完成图（标准分析）"
   - "细菌完成图（基础分析）"
-  
+
 
 
 # 项目类型与模板目录对应关系
 project_type_to_template:
   "细菌完成图（标准分析）": "bacass"
   "细菌完成图（基础分析）": "bacass"
+  "16SAMP": "16SAMP"
   "酵母近完成图（标准分析）": "fungi"
   "真菌精细图": "fungi"
   "酵母近完成图（基础分析）": "fungi"
+  "超大质粒测序": "large_pla"
 
 # 新字段规则
 new_field_rules:
@@ -217,7 +221,7 @@ table_update_triggers:
 
 # 日志配置
 logging:
-  log_dir: /nas02/project/zhaolei/test_data_manger/log/          # 日志存储路径
+  log_dir: /nas02/project/bacass/log/          # 日志存储路径
   log_level: INFO             # 日志级别（DEBUG/INFO/WARNING/ERROR）
   max_bytes: 10485760         # 单个日志文件最大大小（10MB）
   backup_count: 5             # 日志文件备份数量
@@ -232,6 +236,7 @@ notification:
     "酵母近完成图（标准分析）": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=fa7b1fdb25b64c7a8d7044b9bc014d49"  # 真菌项目类型通知URL
     "真菌精细图": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=fa7b1fdb25b64c7a8d7044b9bc014d49"  # 真菌项目类型通知URL
     "酵母近完成图（基础分析）": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=fa7b1fdb25b64c7a8d7044b9bc014d49"  # 真菌项目类型通知URL
+    "超大质粒测序": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32"  # 超大质粒测序项目类型通知URL
     # 可以根据需要添加更多项目类型的webhook URL
 
 # 所有调度器的配置
@@ -242,11 +247,11 @@ scheduler:
   
   # 下机路径扫描调度器配置
   sequencing:
-    interval_minutes: 15  # 每15分钟执行一次
+    interval_minutes: 10  # 每15分钟执行一次
   
   # 分析信息录入调度器配置
   analysis:
-    interval_minutes: 5  # 每5分钟执行一次
+    interval_minutes: 10  # 每5分钟执行一次
   
   # 分析执行调度器配置
   analysis_execution:

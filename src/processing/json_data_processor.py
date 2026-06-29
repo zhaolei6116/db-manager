@@ -75,9 +75,10 @@ class JSONDataProcessor:
                         # 获取项目编号和样本编号
                         project_id = result['project'].get('project_id', '未知')
                         sample_id = result['sample'].get('sample_id', '未知')
+                        batch_id = result['batch'].get('batch_id', '未知')
                         
                         notification_manager.send_yunzhijia_alert(
-                            message=f"收到新项目数据，项目类型：{project_type}，项目编号：{project_id}，样本编号：{sample_id}",
+                            message=f"收到新项目数据，项目类型：{project_type}，项目编号：{project_id}，样本编号：{sample_id}, 批次编号：{batch_id}",
                             module="JSON Data Processor",
                             status="info",
                             project_type=project_type
