@@ -54,6 +54,7 @@ pull_request:
     - T
   START_OFFSET: 24 # 小时
   path: /nas02/project/bacass/LimsData
+  retain_hours: 168 # 已录入文件保留时间（小时），一周=168小时
 
 
 # 原始数据字段映射

@@ -210,8 +210,9 @@ def run_lims_puller(config_file: Optional[str] = None) -> Dict[str, PullResult]:
     start_time, end_time = get_precise_time_range(pull_config)  # 可以改为精确拉取时间 get_precise_time_range
     pull_results = {}  # 存储所有实验室的拉取结果
 
-    # 新增：拉取前先执行安全清理（保留24小时内已录入文件）
-    clean_result = clean_lims_data_dir(config_file, retain_hours=24, dry_run=False)
+    # 新增：拉取前先执行安全清理（保留retain_hours小时内已录入文件）
+    retain_hours = pull_config.get("retain_hours", 24)
+    clean_result = clean_lims_data_dir(config_file, retain_hours=retain_hours, dry_run=False)
     logger.info(f"拉取前清理结果：{clean_result}")
 
     # 3. 循环拉取每个实验室（单实验室失败不影响其他）
