@@ -125,18 +125,32 @@ project_type:
   analysis: "/home/zhaolei/project_analysis"
   16SAMP: "/home/zhaolei/project_analysis/16SAMP"
   bacass: "/nas02/project/bacass"
+  large_pla: "/nas02/project/large_pla"
 
 # 项目类型中文对英文映射
 project_type_map:
   "细菌完成图（标准分析）": "bacass_standard"
   "细菌完成图（基础分析）": "bacass_basic"
+  "酵母近完成图（标准分析）": "yeast_assembly_standard"
+  "真菌精细图": "fungi_high_quality_assembly"
+  "酵母近完成图（基础分析）": "yeast_assembly_basic"
+  "超大质粒测序": "large_pla"
   
+# 数据流转项目类型配置（只有这些项目类型的数据会继续往下流转处理）
+data_flow_project_types:
+  - "细菌完成图（标准分析）"
+  - "细菌完成图（基础分析）"
+  - "超大质粒测序"
 
 # 项目类型与模板目录对应关系
 project_type_to_template:
   "细菌完成图（标准分析）": "bacass"
   "细菌完成图（基础分析）": "bacass"
   "16SAMP": "16SAMP"
+  "酵母近完成图（标准分析）": "fungi"
+  "真菌精细图": "fungi"
+  "酵母近完成图（基础分析）": "fungi"
+  "超大质粒测序": "large_pla"
 
 # 新字段规则
 new_field_rules:
@@ -218,6 +232,10 @@ notification:
     16SAMP: "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=project16s_token"  # 16S项目通知URL
     "细菌完成图（基础分析）": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32"  # 细菌基础分析项目通知URL
     "细菌完成图（标准分析）": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32"  # 细菌标准分析项目通知URL
+    "酵母近完成图（标准分析）": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=fa7b1fdb25b64c7a8d7044b9bc014d49"  # 真菌项目类型通知URL
+    "真菌精细图": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=fa7b1fdb25b64c7a8d7044b9bc014d49"  # 真菌项目类型通知URL
+    "酵母近完成图（基础分析）": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=fa7b1fdb25b64c7a8d7044b9bc014d49"  # 真菌项目类型通知URL
+    "超大质粒测序": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32"  # 超大质粒测序项目类型通知URL
     # 可以根据需要添加更多项目类型的webhook URL
 
 # 所有调度器的配置
