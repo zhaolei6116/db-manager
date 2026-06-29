@@ -140,7 +140,7 @@ project_type_map:
 data_flow_project_types:
   - "细菌完成图（标准分析）"
   - "细菌完成图（基础分析）"
-  - "超大质粒测序"
+
 
 # 项目类型与模板目录对应关系
 project_type_to_template:
