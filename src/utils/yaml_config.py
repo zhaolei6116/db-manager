@@ -154,6 +154,14 @@ class YAMLConfig:
         """
         return self.get("project_type_map", required=True)
 
+    def get_data_flow_project_types(self) -> List[str]:
+        """获取数据流转项目类型配置（data_flow_project_types节点）
+        
+        Returns:
+            允许数据流转的项目类型列表
+        """
+        return self.get("data_flow_project_types", default=[], required=False)
+
     def get_new_field_rules(self) -> List[Dict[str, Any]]:
         """获取新字段处理规则（new_field_rules节点）"""
         return self.get("new_field_rules", default=[], required=False)

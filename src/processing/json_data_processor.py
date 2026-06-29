@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from src.utils.yaml_config import get_yaml_config
 from src.utils.logging_config import log_unknown_project_type
+from src.utils.notification_manager import notification_manager
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ class JSONDataProcessor:
         self.sequence_info_config = self.config.get_sequence_info_config()
         self.sequence_run_config = self.config.get_sequence_run_config()
         self.project_type_map = self.config.get_project_type_map()
+        self.data_flow_project_types = self.config.get_data_flow_project_types()
 
     def parse_json_file(self, json_path: Path) -> Optional[Dict[str, Any]]:
         """
@@ -67,6 +69,29 @@ class JSONDataProcessor:
                 # 如果project_type在映射中存在，直接返回result
                 if project_type in self.project_type_map:
                     logger.info(f"项目类型{project_type}验证通过")
+                    
+                    # 发送项目类型通知
+                    try:
+                        # 获取项目编号和样本编号
+                        project_id = result['project'].get('project_id', '未知')
+                        sample_id = result['sample'].get('sample_id', '未知')
+                        
+                        notification_manager.send_yunzhijia_alert(
+                            message=f"收到新项目数据，项目类型：{project_type}，项目编号：{project_id}，样本编号：{sample_id}",
+                            module="JSON Data Processor",
+                            status="info",
+                            project_type=project_type
+                        )
+                        logger.info(f"已发送项目类型 {project_type} 的通知")
+                    except Exception as e:
+                        logger.error(f"发送项目类型 {project_type} 的通知失败: {str(e)}")
+                    
+                    # 检查是否需要往下流转数据
+                    if project_type not in self.data_flow_project_types:
+                        logger.info(f"项目类型 {project_type} 不在数据流转配置中，数据将不继续往下流转")
+                        return None
+                    else:
+                        logger.info(f"项目类型 {project_type} 允许数据流转，继续处理")
                 else:
                     # 如果project_type不在映射中，记录警告日志并返回None
                     log_unknown_project_type(project_type, logger)

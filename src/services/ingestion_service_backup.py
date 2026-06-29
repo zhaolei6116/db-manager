@@ -33,17 +33,20 @@ class IngestionService:
         self.file_manager = None
         self.data_processor = JSONDataProcessor(config_file)
         
-    def get_new_json_files(self) -> List[Path]:
+    def get_new_json_files(self, json_dir: Optional[str] = None) -> List[Path]:
         """
         获取所有新的JSON文件（查缺补漏版本）
         
+        Args:
+            json_dir: JSON文件夹路径，如果提供则从指定目录获取文件
+            
         Returns:
             JSON文件路径列表
         """
         logger.info("获取新的JSON文件（查缺补漏模式）")
         with get_session() as db_session:
             self.file_manager = FileManager(db_session)
-            new_files = self.file_manager.get_new_file_list()
+            new_files = self.file_manager.get_new_file_list(temp_path=json_dir)
         
         logger.info(f"查缺补漏模式获取到{len(new_files)}个新的JSON文件")
         return new_files
@@ -94,17 +97,20 @@ class IngestionService:
             logger.error(f"文件[{file_name}]处理过程中发生异常: {str(e)}", exc_info=True)
             return False
     
-    def process_all_new_files(self) -> Dict[str, Any]:
+    def process_all_new_files(self, json_dir: Optional[str] = None) -> Dict[str, Any]:
         """
         循环处理所有新的JSON文件
         
+        Args:
+            json_dir: JSON文件夹路径，如果提供则从指定目录获取文件
+            
         Returns:
             处理结果统计信息
         """
         logger.info("开始处理所有新的JSON文件")
         
         # 1. 获取所有新的JSON文件
-        new_files = self.get_new_json_files()
+        new_files = self.get_new_json_files(json_dir=json_dir)
         total = len(new_files)
         success_count = 0
         failure_count = 0
@@ -131,9 +137,12 @@ class IngestionService:
         return result
 
 
-def run_ingestion_process() -> Dict[str, Any]:
+def run_ingestion_process(json_dir: Optional[Union[Path, str]] = None) -> Dict[str, Any]:
     """
     数据录入流程入口函数，供调度器调用
+    
+    Args:
+        json_dir: JSON文件夹路径，如果提供则从指定目录获取文件
     
     Returns:
         处理结果统计信息
@@ -141,7 +150,7 @@ def run_ingestion_process() -> Dict[str, Any]:
     logger.info("开始执行数据录入流程（查缺补漏模式）")
     try:
         service = IngestionService()
-        result = service.process_all_new_files()
+        result = service.process_all_new_files(json_dir=json_dir)
         return result
     except Exception as e:
         logger.error(f"数据录入流程执行失败: {str(e)}", exc_info=True)
@@ -157,8 +166,15 @@ def run_ingestion_process() -> Dict[str, Any]:
 if __name__ == "__main__":
     # 使用项目统一的日志配置，确保同时输出到文件和控制台
     from src.utils.logging_config import setup_logger
+    import argparse
+    
     logger = setup_logger("ingestion_service_backup")
     
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description="数据录入流程（查缺补漏模式）")
+    parser.add_argument("--json-dir", type=str, help="指定要处理的JSON文件夹路径")
+    args = parser.parse_args()
+    
     # 测试数据录入流程
-    result = run_ingestion_process()
+    result = run_ingestion_process(args.json_dir)
     print(f"数据录入流程执行结果: {result}")

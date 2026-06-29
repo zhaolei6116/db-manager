@@ -24,9 +24,8 @@ class CombinedSequenceProcessor:
             raise ValueError("数据库会话对象必须外部输入")
         self.db_session = db_session
         self.sequence_repo = SequenceRepository(db_session)
-        # 加载配置
         self.config = YAMLConfig()
-    
+            
     def complete_sequence_dict(self, data_dict: Dict[str, Any]) -> Dict[str, Any]:
         """
         补全字典中缺失的sequence表必须字段的值
