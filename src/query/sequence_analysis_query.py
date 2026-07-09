@@ -88,8 +88,10 @@ class SequenceAnalysisQueryGenerator:
                 seq_dict = {
                     'sequence_id': seq.sequence_id,
                     'sample_id': seq.sample_id,
+                    'batch_id': seq.batch_id,
                     'project_id': seq.project_id,
                     'project_type': seq.project_type,
+                    'raw_data_path': seq.raw_data_path,
                     'parameters': seq.parameters or {}
                 }
                 result.append(seq_dict)

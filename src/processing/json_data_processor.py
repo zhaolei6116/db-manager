@@ -7,9 +7,10 @@ import logging
 import json
 from pathlib import Path
 from typing import Dict, Any, Optional
+from src.notifications.dispatcher import notification_dispatcher
+from src.notifications.events import build_notification_event
 from src.utils.yaml_config import get_yaml_config
 from src.utils.logging_config import log_unknown_project_type
-from src.utils.notification_manager import notification_manager
 
 logger = logging.getLogger(__name__)
 
@@ -70,29 +71,13 @@ class JSONDataProcessor:
                 if project_type in self.project_type_map:
                     logger.info(f"项目类型{project_type}验证通过")
                     
-                    # 发送项目类型通知
-                    try:
-                        # 获取项目编号和样本编号
-                        project_id = result['project'].get('project_id', '未知')
-                        sample_id = result['sample'].get('sample_id', '未知')
-                        batch_id = result['batch'].get('batch_id', '未知')
-                        
-                        notification_manager.send_yunzhijia_alert(
-                            message=f"收到新项目数据，项目类型：{project_type}，项目编号：{project_id}，样本编号：{sample_id}, 批次编号：{batch_id}",
-                            module="JSON Data Processor",
-                            status="info",
-                            project_type=project_type
-                        )
-                        logger.info(f"已发送项目类型 {project_type} 的通知")
-                    except Exception as e:
-                        logger.error(f"发送项目类型 {project_type} 的通知失败: {str(e)}")
-                    
                     # 检查是否需要往下流转数据
                     if project_type not in self.data_flow_project_types:
                         logger.info(f"项目类型 {project_type} 不在数据流转配置中，数据将不继续往下流转")
                         return None
                     else:
                         logger.info(f"项目类型 {project_type} 允许数据流转，继续处理")
+                        self._dispatch_new_sample_event(result)
                 else:
                     # 如果project_type不在映射中，记录警告日志并返回None
                     log_unknown_project_type(project_type, logger)
@@ -210,7 +195,6 @@ class JSONDataProcessor:
             # 获取batch表的字段字典，用于生成sequence_run相关信息
             batch_dict = self.get_batch_dict(json_data)
             
-            sample_id = sequence_dict.get('sample_id')
             batch_id = batch_dict.get('batch_id')
             laboratory = batch_dict.get("laboratory")
             sequencer_id = batch_dict.get("sequencer_id")
@@ -238,6 +222,29 @@ class JSONDataProcessor:
         except Exception as e:
             logger.error(f"生成合并后的sequence字段字典失败：{str(e)}")
             raise
+
+    def _dispatch_new_sample_event(self, result: Dict[str, Any]) -> None:
+        """发送 NEW_SAMPLE 事件。"""
+        try:
+            project_dict = result.get("project", {})
+            sample_dict = result.get("sample", {})
+            batch_dict = result.get("batch", {})
+            sequence_dict = result.get("sequence", {})
+
+            event = build_notification_event(
+                event="NEW_SAMPLE",
+                project_type=sequence_dict.get("project_type", ""),
+                project_id=project_dict.get("project_id", "未知"),
+                sample_id=sample_dict.get("sample_id", "未知"),
+                batch_id=batch_dict.get("batch_id", "未知"),
+                lab_sequencer_id=sequence_dict.get("lab_sequencer_id"),
+                barcode=sequence_dict.get("barcode"),
+                message="收到新样本下机数据",
+            )
+            dispatch_result = notification_dispatcher.dispatch(event)
+            logger.info("NEW_SAMPLE 事件发送结果: %s", dispatch_result)
+        except Exception as e:
+            logger.error(f"发送 NEW_SAMPLE 事件失败: {str(e)}", exc_info=True)
 
 # 添加可执行测试部分
 if __name__ == "__main__":

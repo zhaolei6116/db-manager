@@ -55,6 +55,9 @@ Thumbs.db
 *.tmp
 *.temp
 *.bak
+.tmp_analysis/
+.tmp_sequencing/
+.tmp_sequencing_*/
 
 # CI/CD
 .gitlab-ci.yml
