@@ -15,6 +15,8 @@ from typing import Dict, List, Tuple, Any
 from sqlalchemy.orm import Session
 
 from src.models.database import get_session
+from src.notifications.dispatcher import notification_dispatcher
+from src.notifications.events import build_notification_event
 from src.query.sequence_analysis_query import SequenceAnalysisQueryGenerator, AnalysisTaskProcessor
 from src.services.project_type_manager import ProjectTypeManager
 from src.repositories.sequence_repository import SequenceRepository
@@ -288,6 +290,7 @@ class AnalysisService:
                 message = f"项目 {project_id} 的分析文件已准备好，可以开始分析任务"
                 module = "Analysis Service"
                 status = "success"
+                analysis_path = self._get_analysis_path(project_id, project_type)
                 
                 try:
                     notification_manager.send_yunzhijia_alert(
@@ -299,6 +302,13 @@ class AnalysisService:
                     logger.info(f"已发送项目 {project_id} 的分析文件准备成功提醒")
                 except Exception as e:
                     logger.error(f"发送项目 {project_id} 的分析文件准备成功提醒失败: {str(e)}")
+
+                self._send_ready_to_run_events(
+                    project_id=project_id,
+                    project_type=project_type,
+                    analysis_path=analysis_path,
+                    sequences=dict2.get(project_key, []),
+                )
             else:
                 # 有步骤失败，发送失败提醒
                 error_reasons = []
@@ -328,6 +338,52 @@ class AnalysisService:
                     logger.info(f"已发送项目 {project_id} 的分析失败提醒")
                 except Exception as e:
                     logger.error(f"发送项目 {project_id} 的分析失败提醒失败: {str(e)}")
+
+    def _get_analysis_path(self, project_id: str, project_type: str) -> str:
+        """获取项目分析路径。"""
+        project_manager = ProjectTypeManager(project_type)
+        return project_manager.generate_project_analysis_path(project_id)
+
+    def _send_ready_to_run_events(
+        self,
+        project_id: str,
+        project_type: str,
+        analysis_path: str,
+        sequences: List[Dict[str, Any]],
+    ) -> None:
+        """逐样本发送 READY_TO_RUN 事件。"""
+        for sequence in sequences:
+            try:
+                sample_id = sequence.get("sample_id")
+                if not sample_id:
+                    logger.warning("READY_TO_RUN 事件缺少 sample_id，跳过发送")
+                    continue
+
+                event = build_notification_event(
+                    event="READY_TO_RUN",
+                    project_type=project_type,
+                    project_id=project_id,
+                    sample_id=sample_id,
+                    batch_id=sequence.get("batch_id"),
+                    raw_data_path=sequence.get("raw_data_path"),
+                    analysis_dir=analysis_path,
+                    message="分析目录和输入文件已准备完成",
+                )
+                dispatch_result = notification_dispatcher.dispatch(event)
+                logger.info(
+                    "READY_TO_RUN 事件发送结果，project_id=%s, sample_id=%s, result=%s",
+                    project_id,
+                    sample_id,
+                    dispatch_result,
+                )
+            except Exception as exc:
+                logger.error(
+                    "发送 READY_TO_RUN 事件失败，project_id=%s, sample_id=%s, error=%s",
+                    project_id,
+                    sequence.get("sample_id"),
+                    str(exc),
+                    exc_info=True,
+                )
 
 
 def run_analysis_process() -> Dict[str, Any]:

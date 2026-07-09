@@ -3,9 +3,8 @@ import smtplib
 import requests
 import logging
 from email.mime.text import MIMEText
-from typing import Dict, Optional, Union
+from typing import Dict, Optional
 import time
-from pathlib import Path
 
 from src.utils.yaml_config import YAMLConfig
 
@@ -44,8 +43,14 @@ class NotificationManager:
         self.yaml_config = YAMLConfig()
         # 获取webhook配置（如果配置文件中有）
         try:
-            # 假设配置文件中有notification.webhooks节点
-            self.project_webhooks = self.yaml_config.get("notification.webhooks", default={})
+            notification_config = self.yaml_config.get("notification", default={})
+            yunzhijia_config = notification_config.get("yunzhijia", {})
+            self.project_webhooks = yunzhijia_config.get(
+                "webhooks",
+                self.yaml_config.get("notification.webhooks", default={})
+            )
+            self.webhook_url = yunzhijia_config.get("webhook_url", self.webhook_url)
+            self.start = yunzhijia_config.get("enabled", self.start)
             logger.info("成功加载项目类型webhook配置")
         except Exception as e:
             logger.warning(f"加载项目类型webhook配置失败: {str(e)}")
@@ -188,6 +193,10 @@ Pipeline Job Status Update:
 """
         }
         
+        return self._post_webhook_payload(webhook_url=webhook_url, payload=payload, module=module)
+
+    def _post_webhook_payload(self, webhook_url: str, payload: Dict, module: str = "General") -> bool:
+        """发送云之家 webhook payload。"""
         try:
             response = requests.post(
                 webhook_url,
@@ -197,12 +206,26 @@ Pipeline Job Status Update:
             if response.status_code == 200:
                 logger.info(f"Webhook notification sent for {module}")
                 return True
-            else:
-                logger.error(f"Webhook notification failed with code {response.status_code}")
-                return False
+
+            logger.error(f"Webhook notification failed with code {response.status_code}")
+            return False
         except Exception as e:
             logger.error(f"Webhook notification error: {str(e)}")
             return False
+
+    def send_yunzhijia_text(self, content: str, project_type: Optional[str] = None) -> bool:
+        """发送自定义文本到云之家，用于统一事件分发层。"""
+        webhook_url = self.get_webhook_url_for_project(project_type)
+        if not webhook_url:
+            logger.warning("未找到可用的云之家 webhook_url，跳过发送")
+            return False
+
+        payload = {"content": content}
+        return self._post_webhook_payload(
+            webhook_url=webhook_url,
+            payload=payload,
+            module="Notification Dispatcher"
+        )
     
     def send_yunzhijia_alert(self, message: str, project_type: str, module: str = "General", 
                            status: str = "warning") -> bool:

@@ -229,6 +229,33 @@ logging:
 
 # 通知配置
 notification:
+  yunzhijia:
+    enabled: true
+    webhook_url: "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=project_default_token"
+    send_event_types:
+      - NEW_SAMPLE
+      - READY_TO_RUN
+    project_type_filters:
+      - "细菌完成图（基础分析）"
+      - "细菌完成图（标准分析）"
+    webhooks:
+      "细菌完成图（基础分析）": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32"
+      "细菌完成图（标准分析）": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32"
+      "酵母近完成图（标准分析）": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=fa7b1fdb25b64c7a8d7044b9bc014d49"
+      "真菌精细图": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=fa7b1fdb25b64c7a8d7044b9bc014d49"
+      "酵母近完成图（基础分析）": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=fa7b1fdb25b64c7a8d7044b9bc014d49"
+      "超大质粒测序": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32"
+  feishu:
+    enabled: true
+    webhook_url: ""
+    secret: ""
+    timeout: 10
+    send_event_types:
+      - NEW_SAMPLE
+      - READY_TO_RUN
+    project_type_filters:
+      - "细菌完成图（基础分析）"
+      - "细菌完成图（标准分析）"
   # 不同项目类型对应的webhook URL
   webhooks:
     16SAMP: "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=project16s_token"  # 16S项目通知URL
