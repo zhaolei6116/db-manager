@@ -12,6 +12,9 @@ from src.repositories.sample_repository import SampleRepository
 from src.repositories.project_repository import ProjectRepository
 from src.utils.yaml_config import YAMLConfig
 from src.utils.notification_manager import notification_manager
+from src.notifications.dispatcher import notification_dispatcher
+from src.notifications.events import build_notification_event, get_current_timestamp
+from src.utils.notification_deduplicator import notification_deduplicator
 from src.query.sequence_parameter_generator import SequenceParameterGenerator
 
 logger = logging.getLogger(__name__)
@@ -78,6 +81,8 @@ class SequenceValidation:
                 barcode = sequence.barcode
                 created_at = sequence.created_at
                 project_type = sequence.project_type
+                project_id = sequence.project_id
+                sample_id = sequence.sample_id
                 
                 # 验证路径和文件完整性
                 is_valid, result = self._validate_sequence_path(
@@ -106,23 +111,26 @@ class SequenceValidation:
                         logger.info(f"已更新sequence_id={sequence_id}的raw_data_path字段为: {result}")
                     except Exception as update_err:
                         logger.error(f"更新sequence_id={sequence_id}的raw_data_path失败: {str(update_err)}")
+
+                    self._try_send_recovered_alert(
+                        sequence_id=sequence_id,
+                        project_id=project_id,
+                        sample_id=sample_id,
+                        batch_id=batch_id,
+                        project_type=project_type,
+                        raw_data_path=str(result),
+                    )
                 else:
                     # 如果未通过验证且超时，记录日志并发送云之家提醒
                     if is_timeout:
                         error_msg = f"sequence_id={sequence_id}验证失败且已超时(>2小时)：{reason}\nraw_data_path: {raw_data_path}\nbarcode: {barcode}\n项目类型: {project_type}"
                         logger.error(error_msg)
                         
-                        # 发送云之家提醒
-                        try:
-                            notification_manager.send_yunzhijia_alert(
-                                message=error_msg,
-                                module="Sequence Validation",
-                                status="timeout",
-                                project_type=project_type
-                            )
-                            logger.info(f"已发送云之家提醒：{sequence_id}超时验证失败，项目类型：{project_type}")
-                        except Exception as notify_err:
-                            logger.error(f"发送云之家提醒失败：{str(notify_err)}")
+                        self._try_send_timeout_alert_once(
+                            sequence_id=sequence_id,
+                            project_type=project_type,
+                            error_msg=error_msg,
+                        )
                     else:
                         logger.info(f"sequence_id={sequence_id}验证未通过，等待后续重试：{reason}")
                     
@@ -135,6 +143,68 @@ class SequenceValidation:
         except Exception as e:
             logger.error(f"验证sequence数据状态失败", exc_info=True)
             return valid_sequence_ids, total_count
+
+    def _try_send_timeout_alert_once(self, sequence_id: str, project_type: str, error_msg: str) -> None:
+        if notification_deduplicator.has_timeout_sent(sequence_id):
+            return
+
+        try:
+            notification_manager.send_yunzhijia_alert(
+                message=error_msg,
+                module="Sequence Validation",
+                status="timeout",
+                project_type=project_type,
+            )
+            logger.info(f"已发送云之家提醒：{sequence_id}超时验证失败，项目类型：{project_type}")
+        except Exception as notify_err:
+            logger.error(f"发送云之家提醒失败：{str(notify_err)}", exc_info=True)
+        finally:
+            notification_deduplicator.mark_timeout_sent(sequence_id=sequence_id, ts=get_current_timestamp())
+
+    def _try_send_recovered_alert(
+        self,
+        sequence_id: str,
+        project_id: str,
+        sample_id: str,
+        batch_id: str,
+        project_type: str,
+        raw_data_path: str,
+    ) -> None:
+        if not notification_deduplicator.has_timeout_sent(sequence_id):
+            return
+
+        if notification_deduplicator.is_recovered_complete(sequence_id):
+            return
+
+        sent_channels = notification_deduplicator.get_recovered_success_channels(sequence_id)
+        target_channels = []
+        if "yunzhijia" not in sent_channels:
+            target_channels.append("yunzhijia")
+        if "feishu" not in sent_channels:
+            target_channels.append("feishu")
+
+        if not target_channels:
+            return
+
+        event = build_notification_event(
+            event="DATA_PATH_RECOVERED",
+            project_type=project_type or "",
+            project_id=project_id or "",
+            sample_id=sample_id or "",
+            batch_id=batch_id,
+            raw_data_path=raw_data_path,
+            message="下机数据已就绪（曾超时）",
+        )
+
+        dispatch_result = notification_dispatcher.dispatch(event, channels=tuple(target_channels))
+        ts = get_current_timestamp()
+        for channel, success in dispatch_result.items():
+            if success:
+                notification_deduplicator.mark_recovered_channel_success(
+                    sequence_id=sequence_id,
+                    channel=channel,
+                    ts=ts,
+                )
     
     def update_validated_sequence(self, sequence_id: str) -> bool:
         """
