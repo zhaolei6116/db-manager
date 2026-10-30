@@ -105,7 +105,7 @@ fields_mapping:
 
 # 测序数据配置
 sequence_info:
-  sequence_data_path: /nas04/sequencing/
+  sequence_data_path: /nas02/project/zhaolei/sequencing
   sequence_name: Sequenator
   dir1: no_sample_id
   dir2: fastq_pass
@@ -247,7 +247,7 @@ notification:
       "超大质粒测序": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32"
   feishu:
     enabled: true
-    webhook_url: ""
+    webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/e03f9e41-21df-44a5-8cea-1c5d98acdad2"
     secret: ""
     timeout: 10
     send_event_types:

@@ -1,0 +1,291 @@
+# config/config.yaml
+
+# 数据库配置
+database:
+  # 公共配置
+  host: 192.168.100.13
+  port: 3306
+  db_name: bio_db
+  charset: utf8mb4
+  
+  # 多用户配置（不同权限的用户）
+  users:
+    # 只读用户（用于查询）
+    reader:
+      user: bio_reader
+      password: reader123
+      role: read_only
+      description: "只读用户，用于数据查询"
+    
+    # 读写用户（用于数据处理）
+    writer:
+      user: bio_writer
+      password: writer123
+      role: read_write
+      description: "读写用户，用于数据导入和更新"
+    
+    # 管理员用户（用于维护操作）
+    admin:
+      user: root
+      password: vklz123
+      role: admin
+      description: "管理员用户，用于数据库维护"
+    
+    # 备份用户（用于备份操作）
+    backup:
+      user: bio_backup
+      password: backup123
+      role: backup
+      description: "备份用户，用于数据备份"
+
+# 输入 json 配置
+ingestion:
+  lims_data_path: /nas02/project/bacass/LimsData/
+  scan_interval: 1800  # 30 minutes
+
+# lims 数据配置
+pull_request:
+  # 可以拉取的实验室
+  labs:
+    - W
+    - S
+    - B
+    - G
+    - T
+  START_OFFSET: 24 # 小时
+  path: /nas02/project/bacass/LimsData
+  retain_hours: 168 # 已录入文件保留时间（小时），一周=168小时
+
+
+# 原始数据字段映射
+fields_mapping:
+  project:
+    project_id: Client
+    custom_name: Custom_name
+    user_name: user_name
+    mobile: Mobile
+    remarks: Remarks
+  sample:
+    sample_id: Detect_no
+    project_id: Client
+    sample_name: Sample_name
+    sample_type: Sample_type
+    sample_type_raw: Sample_type_raw
+    resistance_type: Resistance_type
+    species_name: Species_name
+    genome_size: Genome_size
+    data_volume: Data_volume
+    ref: Ref
+    plasmid_length: PLASMID_LENGTH
+    length: Length
+  batch:
+    batch_id: Batch_id
+    sequencer_id: Sequencer_id
+    laboratory: Laboratory
+  sequence:
+    sample_id: Detect_no
+    project_id: Client
+    project_type: Project
+    batch_id: Batch_id
+    board: Board
+    board_id: Board_id
+    machine_ver: Machine_ver
+    barcode_type: Barcode_type
+    barcode_prefix: Barcode_prefix
+    barcode_number: Barcode_number
+    reanalysis_times: Reanalysis_times
+    experiment_times: Experiment_times
+    allanalysis_times: Allanalysis_times
+    experiment_no: Experiment_no
+    sample_con: Sample_con
+    sample_status: Sample_status
+    unqualifytime: Unqualifytime
+    report_path: Report_path
+    report_raw_path: Report_raw_path
+
+# 测序数据配置
+sequence_info:
+  sequence_data_path: /nas02/project/zhaolei/sequencing
+  sequence_name: Sequenator
+  dir1: no_sample_id
+  dir2: fastq_pass
+  key_file: html
+
+
+# 路径模板
+sequence_run:
+  lab_sequencer_id: "{fields_mapping.batch.laboratory}{sequence_data.sequence_name}{fields_mapping.batch.sequencer_id}"
+  barcode: "{fields_mapping.sequence.barcode_prefix}{fields_mapping.sequence.barcode_number}"
+  batch_id_path: "{sequence_data.sequence_data_path}/{sequence_run.lab_sequencer_id}/{fields_mapping.batch.batch_id}"
+  raw_data_path_template: "{sequence_run.batch_id_path}/{sequence_data.dir1}/{run_name}/{sequence_data.dir2}/{sequence_run.barcode}"
+
+
+
+# 项目类型分析路径
+project_type:
+  analysis: "/home/zhaolei/project_analysis"
+  16SAMP: "/home/zhaolei/project_analysis/16SAMP"
+  bacass: "/nas02/project/bacass"
+  large_pla: "/nas02/project/large_pla"
+
+# 项目类型中文对英文映射
+project_type_map:
+  "细菌完成图（标准分析）": "bacass_standard"
+  "细菌完成图（基础分析）": "bacass_basic"
+  "酵母近完成图（标准分析）": "yeast_assembly_standard"
+  "真菌精细图": "fungi_high_quality_assembly"
+  "酵母近完成图（基础分析）": "yeast_assembly_basic"
+  "超大质粒测序": "large_pla"
+
+# 数据流转项目类型配置（只有这些项目类型的数据会继续往下流转处理）
+data_flow_project_types:
+  - "细菌完成图（标准分析）"
+  - "细菌完成图（基础分析）"
+
+
+
+# 项目类型与模板目录对应关系
+project_type_to_template:
+  "细菌完成图（标准分析）": "bacass"
+  "细菌完成图（基础分析）": "bacass"
+  "16SAMP": "16SAMP"
+  "酵母近完成图（标准分析）": "fungi"
+  "真菌精细图": "fungi"
+  "酵母近完成图（基础分析）": "fungi"
+  "超大质粒测序": "large_pla"
+
+# 新字段规则
+new_field_rules:
+  - field_name: new_field
+    table: sequence
+    data_type: VARCHAR(50)
+    default_value: ""
+    action: ignore   # 忽略但提示管理员
+    reason: "新字段，需要手动添加"
+
+# 更新触发规则
+table_update_triggers:
+  project:
+    update_only:
+      - custom_name
+      - user_name
+      - mobile
+      - remarks
+    reanalyze: []
+    newrecord:
+      - project_id
+  sample:
+    update_only:
+      - sample_name
+      - sample_type
+      - sample_type_raw
+      - resistance_type
+      - species_name
+      - genome_size
+      - data_volume
+      - ref
+      - plasmid_length
+      - length
+    reanalyze:
+      - project_type
+    newrecord:
+      - sample_id
+  batch:
+    update_only: []
+    reanalyze:
+      - sequencer_id
+      - laboratory
+    newrecord:
+      - batch_id
+  sequence:
+    update_only:
+      - board
+      - board_id
+      - machine_ver
+      - barcode_type
+      - reanalysis_times
+      - experiment_times
+      - allanalysis_times
+      - experiment_no
+      - sample_con
+      - sample_status
+      - unqualifytime
+      - report_path
+      - report_raw_path
+    reanalyze:
+      - barcode_prefix
+      - barcode_number
+    newrecord:
+      - sample_id
+      - batch_id
+
+
+# 日志配置
+logging:
+  log_dir: /nas02/project/bacass/log/          # 日志存储路径
+  log_level: INFO             # 日志级别（DEBUG/INFO/WARNING/ERROR）
+  max_bytes: 10485760         # 单个日志文件最大大小（10MB）
+  backup_count: 5             # 日志文件备份数量
+
+# 通知配置
+notification:
+  yunzhijia:
+    enabled: true
+    webhook_url: "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=project_default_token"
+    send_event_types:
+      - NEW_SAMPLE
+      - READY_TO_RUN
+    project_type_filters:
+      - "细菌完成图（基础分析）"
+      - "细菌完成图（标准分析）"
+    webhooks:
+      "细菌完成图（基础分析）": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32"
+      "细菌完成图（标准分析）": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32"
+      "酵母近完成图（标准分析）": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=fa7b1fdb25b64c7a8d7044b9bc014d49"
+      "真菌精细图": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=fa7b1fdb25b64c7a8d7044b9bc014d49"
+      "酵母近完成图（基础分析）": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=fa7b1fdb25b64c7a8d7044b9bc014d49"
+      "超大质粒测序": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32"
+  feishu:
+    enabled: true
+    webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/e03f9e41-21df-44a5-8cea-1c5d98acdad2"
+    secret: ""
+    timeout: 10
+    send_event_types:
+      - NEW_SAMPLE
+      - READY_TO_RUN
+    project_type_filters:
+      - "细菌完成图（基础分析）"
+      - "细菌完成图（标准分析）"
+  # 不同项目类型对应的webhook URL
+  webhooks:
+    16SAMP: "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=project16s_token"  # 16S项目通知URL
+    "细菌完成图（基础分析）": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32"  # 细菌基础分析项目通知URL
+    "细菌完成图（标准分析）": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32"  # 细菌标准分析项目通知URL
+    "酵母近完成图（标准分析）": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=fa7b1fdb25b64c7a8d7044b9bc014d49"  # 真菌项目类型通知URL
+    "真菌精细图": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=fa7b1fdb25b64c7a8d7044b9bc014d49"  # 真菌项目类型通知URL
+    "酵母近完成图（基础分析）": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=fa7b1fdb25b64c7a8d7044b9bc014d49"  # 真菌项目类型通知URL
+    "超大质粒测序": "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=814cb2294b5d4b009b7c678f51e55f32"  # 超大质粒测序项目类型通知URL
+    # 可以根据需要添加更多项目类型的webhook URL
+
+# 所有调度器的配置
+scheduler:
+  # LIMS数据拉取调度器配置
+  lims:
+    interval_minutes: 30  # 每30分钟执行一次
+  
+  # 下机路径扫描调度器配置
+  sequencing:
+    interval_minutes: 10  # 每15分钟执行一次
+  
+  # 分析信息录入调度器配置
+  analysis:
+    interval_minutes: 10  # 每5分钟执行一次
+  
+  # 分析执行调度器配置
+  analysis_execution:
+    interval_minutes: 5  # 每5分钟执行一次
+
+# 作业提交配置
+job_submission:
+  # qsub命令路径
+  qsub_path: "/opt/gridengine/bin/linux-x64/qsub"  # 模拟路径，实际环境中替换为真实路径
