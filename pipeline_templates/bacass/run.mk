@@ -1,7 +1,7 @@
 #!/bin/bash
 #$ -V
 #$ -cwd
-#$ -q all.q
+#$ -q dev.q
 #$ -l vf=20G
 #$ -pe smp 1
 
