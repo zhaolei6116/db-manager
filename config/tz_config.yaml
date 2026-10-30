@@ -287,6 +287,8 @@ scheduler:
 
 # 作业提交配置
 job_submission:
+  executor: slurm
   # qsub命令路径
   qsub_path: "/opt/gridengine/bin/linux-x64/qsub"  # 模拟路径，实际环境中替换为真实路径
   sbatch_path: "/usr/bin/sbatch"
+  submit_timeout_seconds: 60

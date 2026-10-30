@@ -4,16 +4,14 @@
 
 该模块实现了以下核心功能：
 1. 处理analysis_tasks表中analysis_status为pending的记录
-2. 进入分析目录，执行qsub命令提交任务
+2. 根据配置选择SGE或Slurm执行器提交任务
 3. 任务提交成功后，修改analysis_status为running
-4. 通过配置获取qsub路径，若不存在则使用模拟路径
 """
 
 import os
-import subprocess
 from typing import Dict, Any
-import logging
 
+from src.executors.job_executor import create_job_executor
 from src.models.database import get_session
 from src.repositories.analysis_task_repository import AnalysisTaskRepository
 from src.utils.yaml_config import get_yaml_config
@@ -36,36 +34,12 @@ class AnalysisExecutionService:
         logger.info("初始化分析执行服务")
         self.config = get_yaml_config()
         self.test_mode = test_mode
-        self.qsub_path = self._get_qsub_path()
-
-    def _get_qsub_path(self) -> str:
-        """
-        从配置中获取qsub命令路径，若不存在则返回模拟路径
-        
-        Returns:
-            str: qsub命令的完整路径
-        """
-        try:
-            # 测试模式下直接使用项目中的模拟qsub脚本
-            if self.test_mode:
-                simulated_qsub_path = "/home/zhaolei/project/data_management/tests/simulated_qsub.sh"
-                logger.info(f"测试模式: 使用项目中的模拟qsub脚本: {simulated_qsub_path}")
-                return simulated_qsub_path
-                
-            # 尝试从配置中获取qsub路径
-            qsub_path = self.config.get("job_submission.qsub_path", required=False)
-            if qsub_path and os.path.exists(qsub_path):
-                logger.info(f"成功获取qsub命令路径: {qsub_path}")
-                return qsub_path
-            else:
-                # 如果配置中不存在或路径不存在，返回模拟路径
-                simulated_path = "/usr/local/bin/qsub"
-                logger.warning(f"配置中qsub路径不存在或无效，使用模拟路径: {simulated_path}")
-                return simulated_path
-        except Exception as e:
-            logger.error(f"获取qsub路径失败: {str(e)}")
-            # 出现异常时也返回模拟路径
-            return "/usr/local/bin/qsub"
+        self.executor = create_job_executor(self.config, test_mode=test_mode)
+        logger.info(
+            "作业执行器初始化完成: executor=%s, command=%s",
+            self.executor.name,
+            self.executor.command_path,
+        )
 
     def process_pending_tasks(self) -> Dict[str, Any]:
         """
@@ -127,7 +101,7 @@ class AnalysisExecutionService:
 
     def _execute_analysis_task(self, task_dict) -> bool:
         """
-        执行单个分析任务，提交到qsub
+        执行单个分析任务，提交到配置指定的集群调度器
         
         Args:
             task_dict: 包含任务信息的字典
@@ -149,38 +123,37 @@ class AnalysisExecutionService:
             return False
         
         try:
-            # 进入分析目录
-            original_dir = os.getcwd()
-            os.chdir(task_dict['analysis_path'])
-            
-            try:
-                # 提交任务到qsub
-                # 注意：实际使用时可能需要根据系统环境调整qsub命令的参数
-                result = subprocess.run(
-                    [self.qsub_path, "run.sh"],
-                    capture_output=True,
-                    text=True,
-                    check=False  # 不抛出异常，手动检查返回码
+            result = self.executor.submit(
+                script_path=run_script_path,
+                working_directory=task_dict['analysis_path'],
+            )
+
+            if result.success:
+                logger.info(
+                    "任务提交成功: executor=%s, job_id=%s, output=%s",
+                    self.executor.name,
+                    result.job_id or "未解析",
+                    result.stdout,
                 )
-                
-                if result.returncode == 0:
-                    logger.info(f"任务提交成功，qsub输出: {result.stdout.strip()}")
-                    # 更新任务状态为running
-                    self._update_task_status(task_dict['task_id'], "running")
-                    return True
-                else:
-                    logger.error(f"任务提交失败，qsub错误输出: {result.stderr.strip()}")
-                    return False
-            finally:
-                # 恢复原来的工作目录
-                os.chdir(original_dir)
+                if not result.job_id:
+                    logger.warning(
+                        "%s提交命令返回成功，但未能解析job ID: %s",
+                        self.executor.name,
+                        result.stdout,
+                    )
+                self._update_task_status(task_dict['task_id'], "running")
+                return True
+
+            error_output = result.stderr or result.stdout or "无错误输出"
+            logger.error(
+                "任务提交失败: executor=%s, return_code=%s, error=%s",
+                self.executor.name,
+                result.return_code,
+                error_output,
+            )
+            return False
         except Exception as e:
             logger.error(f"执行任务时发生异常: {str(e)}", exc_info=True)
-            # 确保恢复工作目录
-            try:
-                os.chdir(original_dir)
-            except:
-                pass
             return False
 
     def _update_task_status(self, task_id: str, new_status: str) -> None:
