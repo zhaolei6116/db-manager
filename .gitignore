@@ -69,3 +69,6 @@ LimsData/
 
 
 ./nohup.out
+# 站点自己软链，不记录；
+config/config.yaml
+pipeline_templates/bacass/run.mk
