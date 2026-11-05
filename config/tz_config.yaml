@@ -40,7 +40,7 @@ database:
 
 # 输入 json 配置
 ingestion:
-  lims_data_path: /gpfs/kw/project/bacass/LimsData/
+  lims_data_path:  /gpfs/kw/project/cwbio_bacteria/bacass/LimsData/
   scan_interval: 1800  # 30 minutes
 
 # lims 数据配置
@@ -53,7 +53,7 @@ pull_request:
     - G
     - T
   START_OFFSET: 24 # 小时
-  path: /gpfs/kw/project/bacass/LimsData
+  path:  /gpfs/kw/project/cwbio_bacteria/bacass/LimsData
   retain_hours: 168 # 已录入文件保留时间（小时），一周=168小时
 
 
@@ -124,9 +124,8 @@ sequence_run:
 # 项目类型分析路径
 project_type:
   analysis: "/home/zhaolei/project_analysis"
-  16SAMP: "/home/zhaolei/project_analysis/16SAMP"
-  bacass: "/gpfs/kw/project/bacass"
-  large_pla: "/nas02/project/large_pla"
+  bacass: " /gpfs/kw/project/cwbio_bacteria/bacass"
+  large_pla: " /gpfs/kw/project/cwbio_bacteria/large_pla"
 
 # 项目类型中文对英文映射
 project_type_map:
@@ -222,7 +221,7 @@ table_update_triggers:
 
 # 日志配置
 logging:
-  log_dir: /gpfs/kw/project/bacass/log/          # 日志存储路径
+  log_dir:  /gpfs/kw/project/cwbio_bacteria/bacass/log/          # 日志存储路径
   log_level: INFO             # 日志级别（DEBUG/INFO/WARNING/ERROR）
   max_bytes: 10485760         # 单个日志文件最大大小（10MB）
   backup_count: 5             # 日志文件备份数量
